@@ -1,0 +1,34 @@
+#include <stdio.h>
+#include <string.h>
+#include <tss2/tss2_fapi.h>
+
+int main() {
+    TSS2_RC r = 0;
+    char *err = NULL;
+
+    // Initialize the FAPI Context
+    FAPI_CONTEXT *fapi_context;
+    r = Fapi_Initialize(&fapi_context, NULL);
+    if (r != TSS2_RC_SUCCESS) {
+        err = "Failed to initialize";
+        goto error;
+    }
+
+    char *info = NULL;
+    r = Fapi_GetInfo(fapi_context, &info);
+    if (r != TSS2_RC_SUCCESS) {
+        err = "Failed to get info";
+        goto error;
+    }
+
+    printf("TPM Info: \n%s\n", info);
+    Fapi_Free(info);
+
+    Fapi_Finalize(&fapi_context);
+    return 0;
+
+error:
+    fprintf(stderr, "Error: %s", err);
+    Fapi_Finalize(&fapi_context);
+    return 1;
+}
