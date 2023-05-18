@@ -34,7 +34,7 @@ int main() {
     return 0;
 
 error:
-    fprintf(stderr, "Error %u: %s", r, err);
+    fprintf(stderr, "Error 0x%x: %s", r, err);
     Fapi_Finalize(&fapi_context);
     return 1;
 }
