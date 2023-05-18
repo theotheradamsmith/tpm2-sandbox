@@ -24,11 +24,17 @@ int main() {
     printf("TPM Info: \n%s\n", info);
     Fapi_Free(info);
 
+    r = Fapi_Provision(fapi_context, NULL, NULL, NULL);
+    if (r != TSS2_RC_SUCCESS) {
+        err = "Failed to provision";
+        goto error;
+    }
+
     Fapi_Finalize(&fapi_context);
     return 0;
 
 error:
-    fprintf(stderr, "Error: %s", err);
+    fprintf(stderr, "Error %u: %s", r, err);
     Fapi_Finalize(&fapi_context);
     return 1;
 }
