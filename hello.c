@@ -26,7 +26,7 @@ int main() {
 
     r = Fapi_Provision(fapi_context, NULL, NULL, NULL);
     if (r == TSS2_FAPI_RC_ALREADY_PROVISIONED) {
-        fprintf(stderr, "Already provisioned! 0x%x", r)
+        fprintf(stderr, "Already provisioned! 0x%x", r);
     } else if (r != TSS2_RC_SUCCESS) {
         err = "Failed to provision";
         goto error;
