@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <tss2/tss2_common.h>
 #include <tss2/tss2_fapi.h>
 
 int main() {
@@ -31,6 +32,15 @@ int main() {
         err = "Failed to provision";
         goto error;
     }
+
+    r = Fapi_List(fapi_context, "/", &info);
+    if (r != TSS2_RC_SUCCESS) {
+        err = "Failed to get list";
+        goto error;
+    }
+
+    printf("TPM List:\n%s\n", info);
+    Fapi_Free(info);
 
     Fapi_Finalize(&fapi_context);
     return 0;
