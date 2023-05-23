@@ -47,7 +47,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := os.WriteFile("ek.out", attestParams.Public, 0600); err != nil {
+	if err := os.WriteFile("attest_params.out", attestParams.Public, 0600); err != nil {
 		log.Fatal("Unable to write attest Params")
 		os.Exit(1)
 	}
