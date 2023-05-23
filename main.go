@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 
@@ -19,6 +20,9 @@ func main() {
 	if err != nil {
 		log.Fatal("Unable to fetch EK")
 		os.Exit(1)
+	}
+	for i := 0; i < len(eks); i++ {
+		fmt.Println(eks[i].Certificate.PublicKeyAlgorithm)
 	}
 	ek := eks[0]
 
