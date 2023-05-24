@@ -73,6 +73,7 @@ func randExample() int {
 }
 
 func generateEK() {
+	fmt.Print("Generating EK...")
 	f, err := os.OpenFile("/dev/tpmrm0", os.O_RDWR, 0)
 	if err != nil {
 		log.Fatalf("opening tpm: %v", err)
@@ -128,6 +129,7 @@ func generateEK() {
 }
 
 func generateSRK() {
+	fmt.Print("Generating SRK...")
 	f, err := tpm2.OpenTPM("dev/tpmrm0")
 	if err != nil {
 		log.Fatalf("opening tpm: %v", err)
