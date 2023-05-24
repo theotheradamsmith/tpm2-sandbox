@@ -127,6 +127,47 @@ func generateEK() {
 	pem.Encode(os.Stdout, b)
 }
 
+func generateSRK() {
+	f, err := tpm2.OpenTPM("dev/tpmrm0")
+	if err != nil {
+		log.Fatalf("opening tpm: %v", err)
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.Fatalf("closing tpm: %v", err)
+		}
+	}()
+
+	tmpl := tpm2.Public{
+		Type:    tpm2.AlgRSA,
+		NameAlg: tpm2.AlgSHA256,
+		Attributes: tpm2.FlagFixedTPM |
+			tpm2.FlagFixedParent |
+			tpm2.FlagSensitiveDataOrigin |
+			tpm2.FlagUserWithAuth | // Uses (empty) password
+			tpm2.FlagNoDA | // This flag doesn't do anything, but it's in the spec
+			tpm2.FlagRestricted |
+			tpm2.FlagDecrypt,
+		RSAParameters: &tpm2.RSAParams{
+			Symmetric:  &tpm2.SymScheme{Alg: tpm2.AlgAES, KeyBits: 128, Mode: tpm2.AlgCFB},
+			KeyBits:    2048,
+			ModulusRaw: make([]byte, 256),
+		},
+	}
+
+	srk, _, err := tpm2.CreatePrimary(f, tpm2.HandleOwner, tpm2.PCRSelection{}, "", "", tmpl)
+	if err != nil {
+		log.Fatalf("creating srk: %v", err)
+	}
+	out, err := tpm2.ContextSave(f, srk)
+	if err != nil {
+		log.Fatalf("saving context: %v", err)
+	}
+	if err := ioutil.WriteFile("srk.ctx", out, 0644); err != nil {
+		log.Fatalf("writing context: %v", err)
+	}
+}
+
 func main() {
 	ret := 0
 	//ret = attestationExample()
