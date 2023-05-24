@@ -427,7 +427,7 @@ func generateAppK() {
 		log.Fatalf("expected ecdsa public key, got: %T", akPub)
 	}
 	if len(sigData) != 64 {
-		log.Fatalf("expected ecdsa signature")
+		log.Fatalf("expected ecdsa signature: %d", len(sigData))
 	}
 	var r, s big.Int
 	r.SetBytes(sigData[:len(sigData)/2])
