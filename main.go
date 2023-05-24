@@ -173,5 +173,6 @@ func main() {
 	//ret = attestationExample()
 	//ret = randExample()
 	generateEK()
+	generateSRK()
 	os.Exit(ret)
 }
