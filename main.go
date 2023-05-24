@@ -427,16 +427,24 @@ func generateAppK() {
 		log.Fatalf("expected ecdsa public key, got: %T", akPub)
 	}
 
-	if len(sigData) != 64 {
-		fmt.Printf("expected ecdsa signature len 64: got %d\n", len(sigData))
-	}
-	var r, s big.Int
-	r.SetBytes(sigData[:len(sigData)/2])
-	s.SetBytes(sigData[len(sigData)/2:])
+	/*
+		if len(sigData) != 64 {
+			fmt.Printf("expected ecdsa signature len 64: got %d\n", len(sigData))
+		}
+		var r, s big.Int
+		r.SetBytes(sigData[:len(sigData)/2])
+		s.SetBytes(sigData[len(sigData)/2:])
+
+		// Verify attested data is signed by the EK public key
+		digest := sha256.Sum256(attestData)
+		if !ecdsa.Verify(akECDSAPub, digest[:], &r, &s) {
+			log.Fatalf("signature didn't match")
+		}
+	*/
 
 	// Verify attested data is signed by the EK public key
 	digest := sha256.Sum256(attestData)
-	if !ecdsa.Verify(akECDSAPub, digest[:], &r, &s) {
+	if !ecdsa.VerifyASN1(akECDSAPub, digest[:], sigData) {
 		log.Fatalf("signature didn't match")
 	}
 
@@ -601,7 +609,7 @@ func main() {
 	//generateEK()
 	//generateSRK()
 	//generateAK()
-	//generateAppK()
-	test()
+	generateAppK()
+	//test()
 	os.Exit(ret)
 }
