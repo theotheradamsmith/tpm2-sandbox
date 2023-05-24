@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/asn1"
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
@@ -422,9 +423,20 @@ func generateAppK() {
 
 	// Instead of a challenge and response dance, the CA simply verifies the signature
 	// using the AK's public key
-	akECDSAPub, ok := akPub.(*ecdsa.PublicKey)
+	parsed := struct{ R, S *big.Int }{}
+	_, err = asn1.Unmarshal(sigData, &parsed)
+	if err != nil {
+		log.Fatalf("signature parsing failed: %v", err)
+	}
+
+	akPubECDSA, ok := akPub.(*ecdsa.PublicKey)
 	if !ok {
 		log.Fatalf("expected ecdsa public key, got: %T", akPub)
+	}
+
+	digest := sha256.Sum256(attestData)
+	if !ecdsa.Verify(akPubECDSA, digest[:], parsed.R, parsed.S) {
+		log.Fatalf("ecdsa.Verify() failed")
 	}
 
 	/*
@@ -442,11 +454,13 @@ func generateAppK() {
 		}
 	*/
 
-	// Verify attested data is signed by the EK public key
-	digest := sha256.Sum256(attestData)
-	if !ecdsa.VerifyASN1(akECDSAPub, digest[:], sigData) {
-		log.Fatalf("VerifyASN1: signature didn't match")
-	}
+	/*
+		// Verify attested data is signed by the EK public key
+		digest := sha256.Sum256(attestData)
+		if !ecdsa.VerifyASN1(akECDSAPub, digest[:], sigData) {
+			log.Fatalf("VerifyASN1: signature didn't match")
+		}
+	*/
 
 	// At this point the attestation data's signature is correct and can be used to
 	// further verify the application key's public key blob. Unpack the blob to
