@@ -12,6 +12,8 @@ import (
 	"github.com/google/go-tpm/tpm2"
 )
 
+const pathTPM string = "/dev/tpmrm0"
+
 func attestationExample() int {
 	config := &attest.OpenConfig{}
 	tpm, err := attest.OpenTPM(config)
@@ -56,7 +58,7 @@ func attestationExample() int {
 }
 
 func randExample() int {
-	f, err := os.OpenFile("/dev/tpmrm0", os.O_RDWR, 0)
+	f, err := os.OpenFile(pathTPM, os.O_RDWR, 0)
 	if err != nil {
 		log.Fatalf("opening tpm: %v", err)
 	}
@@ -73,8 +75,8 @@ func randExample() int {
 }
 
 func generateEK() {
-	fmt.Print("Generating EK...")
-	f, err := os.OpenFile("/dev/tpmrm0", os.O_RDWR, 0)
+	fmt.Println("Generating EK...")
+	f, err := os.OpenFile(pathTPM, os.O_RDWR, 0)
 	if err != nil {
 		log.Fatalf("opening tpm: %v", err)
 	}
@@ -129,8 +131,8 @@ func generateEK() {
 }
 
 func generateSRK() {
-	fmt.Print("Generating SRK...")
-	f, err := tpm2.OpenTPM("dev/tpmrm0")
+	fmt.Println("Generating SRK...")
+	f, err := tpm2.OpenTPM(pathTPM)
 	if err != nil {
 		log.Fatalf("opening tpm: %v", err)
 	}
