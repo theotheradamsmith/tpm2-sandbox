@@ -2,11 +2,14 @@ package main
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math/big"
 	"os"
 
 	"github.com/google/go-attestation/attest"
@@ -333,12 +336,148 @@ func generateAK() {
 	fmt.Printf("%s\n", out)
 }
 
+func generateAppK() {
+	fmt.Println("Generating Application Key...")
+	f, err := tpm2.OpenTPM(pathTPM)
+	if err != nil {
+		log.Fatalf("opening tpm: %v", err)
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.Fatalf("closing tpm: %v", err)
+		}
+	}()
+
+	srkCtx, err := ioutil.ReadFile("srk.ctx")
+	if err != nil {
+		log.Fatalf("read srk: %v", err)
+	}
+	srk, err := tpm2.ContextLoad(f, srkCtx)
+	if err != nil {
+		log.Fatalf("load srk: %v", err)
+	}
+
+	akCtx, err := ioutil.ReadFile("ak.ctx")
+	if err != nil {
+		log.Fatalf("read ak: %v", err)
+	}
+	ak, err := tpm2.ContextLoad(f, akCtx)
+	if err != nil {
+		log.Fatalf("load ak: %v", err)
+	}
+
+	// This time, generate a key without the "restricted" flag, letting it sign arbitrary data
+	tmpl := tpm2.Public{
+		Type:    tpm2.AlgECC,
+		NameAlg: tpm2.AlgSHA256,
+		Attributes: tpm2.FlagFixedTPM |
+			tpm2.FlagFixedParent |
+			tpm2.FlagSensitiveDataOrigin |
+			tpm2.FlagUserWithAuth |
+			tpm2.FlagSign,
+		ECCParameters: &tpm2.ECCParams{
+			Sign:    &tpm2.SigScheme{Alg: tpm2.AlgECDSA, Hash: tpm2.AlgSHA256},
+			CurveID: tpm2.CurveNISTP256,
+			Point: tpm2.ECPoint{
+				XRaw: make([]byte, 32),
+				YRaw: make([]byte, 32),
+			},
+		},
+	}
+
+	privBlob, pubBlob, _, hash, ticket, err := tpm2.CreateKey(f, srk, tpm2.PCRSelection{}, "", "", tmpl)
+	if err != nil {
+		log.Fatalf("create appk: %v", err)
+	}
+	appKey, _, err := tpm2.Load(f, srk, "", pubBlob, privBlob)
+	if err != nil {
+		log.Fatalf("load app key: %v", err)
+	}
+
+	// Write key context to disk
+	appKeyCtx, err := tpm2.ContextSave(f, appKey)
+	if err != nil {
+		log.Fatalf("saving context: %v", err)
+	}
+	if err := ioutil.WriteFile("app.ctx", appKeyCtx, 0644); err != nil {
+		log.Fatalf("writing context: %v", err)
+	}
+
+	// To certify the new key, call CertifyCreation, passing the AK as the signing object.
+	// This returns an attestation and a signature
+	akTPMPub, _, _, err := tpm2.ReadPublic(f, ak)
+	if err != nil {
+		log.Fatalf("read ak pub: %v", err)
+	}
+	sigParams := akTPMPub.ECCParameters.Sign
+	akPub, err := akTPMPub.Key()
+	if err != nil {
+		log.Fatalf("getting ak public key: %v", err)
+	}
+
+	attestData, sigData, err := tpm2.CertifyCreation(f, "", appKey, ak, nil, hash, *sigParams, ticket)
+	if err != nil {
+		log.Fatalf("certify creation: %v", err)
+	}
+
+	// Instead of a challenge and response dance, the CA simply verifies the signature
+	// using the AK's public key
+	akECDSAPub, ok := akPub.(*ecdsa.PublicKey)
+	if !ok {
+		log.Fatalf("expected ecdsa public key, got: %T", akPub)
+	}
+	if len(sigData) != 64 {
+		log.Fatalf("expected ecdsa signature")
+	}
+	var r, s big.Int
+	r.SetBytes(sigData[:len(sigData)/2])
+	s.SetBytes(sigData[len(sigData)/2:])
+
+	// Verify attested data is signed by the EK public key
+	digest := sha256.Sum256(attestData)
+	if !ecdsa.Verify(akECDSAPub, digest[:], &r, &s) {
+		log.Fatalf("signature didn't match")
+	}
+
+	// At this point the attestation data's signature is correct and can be used to
+	// further verify the application key's public key blob. Unpack the blob to
+	// inspect the attributes of the newly-created key
+
+	// Verify the signed attestation was for this public blob
+	a, err := tpm2.DecodeAttestationData(attestData)
+	if err != nil {
+		log.Fatalf("decode attestation: %v", err)
+	}
+	pubDigest := sha256.Sum256(pubBlob)
+	if !bytes.Equal(a.AttestedCertifyInfo.Name.Digest.Value, pubDigest[:]) {
+		log.Fatalf("attestation was not for public blob")
+	}
+
+	// Decode public key and inspect key attributes
+	tpmPub, err := tpm2.DecodePublic(pubBlob)
+	if err != nil {
+		log.Fatalf("decode public blob: %v", err)
+	}
+	pub, err := tpmPub.Key()
+	if err != nil {
+		log.Fatalf("decode public key: %v", err)
+	}
+	pubDER, err := x509.MarshalPKIXPublicKey(pub)
+	if err != nil {
+		log.Fatalf("encoding public key: %v", err)
+	}
+	b := &pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}
+	fmt.Printf("Key attributres: 0x%08x\n", tpmPub.Attributes)
+	pem.Encode(os.Stdout, b)
+}
+
 func main() {
 	ret := 0
 	//ret = attestationExample()
 	//ret = randExample()
 	//generateEK()
 	//generateSRK()
-	generateAK()
+	//generateAK()
+	generateAppK()
 	os.Exit(ret)
 }
