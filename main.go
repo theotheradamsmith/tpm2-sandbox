@@ -5,7 +5,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/sha256"
 	"crypto/x509"
-	"encoding/asn1"
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
@@ -423,41 +422,41 @@ func generateAppK() {
 
 	// Instead of a challenge and response dance, the CA simply verifies the signature
 	// using the AK's public key
-	parsed := struct{ R, S *big.Int }{}
-	_, err = asn1.Unmarshal(sigData, &parsed)
-	if err != nil {
-		log.Fatalf("signature parsing failed: %v", err)
-	}
-
 	akPubECDSA, ok := akPub.(*ecdsa.PublicKey)
 	if !ok {
 		log.Fatalf("expected ecdsa public key, got: %T", akPub)
 	}
 
-	digest := sha256.Sum256(attestData)
-	if !ecdsa.Verify(akPubECDSA, digest[:], parsed.R, parsed.S) {
-		log.Fatalf("ecdsa.Verify() failed")
-	}
-
 	/*
-		if len(sigData) != 64 {
-			fmt.Printf("expected ecdsa signature len 64: got %d\n", len(sigData))
+		parsed := struct{ R, S *big.Int }{}
+		_, err = asn1.Unmarshal(sigData, &parsed)
+		if err != nil {
+			log.Fatalf("signature parsing failed: %v", err)
 		}
-		var r, s big.Int
-		r.SetBytes(sigData[:len(sigData)/2])
-		s.SetBytes(sigData[len(sigData)/2:])
 
-		// Verify attested data is signed by the EK public key
 		digest := sha256.Sum256(attestData)
-		if !ecdsa.Verify(akECDSAPub, digest[:], &r, &s) {
-			log.Fatalf("signature didn't match")
+		if !ecdsa.Verify(akPubECDSA, digest[:], parsed.R, parsed.S) {
+			log.Fatalf("ecdsa.Verify() failed")
 		}
 	*/
 
+	if len(sigData) != 64 {
+		fmt.Printf("expected ecdsa signature len 64: got %d\n", len(sigData))
+	}
+	var r, s big.Int
+	r.SetBytes(sigData[:len(sigData)/2])
+	s.SetBytes(sigData[len(sigData)/2:])
+
+	// Verify attested data is signed by the EK public key
+	digest := sha256.Sum256(attestData)
+	if !ecdsa.Verify(akPubECDSA, digest[:], &r, &s) {
+		log.Fatalf("signature didn't match")
+	}
+
 	/*
 		// Verify attested data is signed by the EK public key
 		digest := sha256.Sum256(attestData)
-		if !ecdsa.VerifyASN1(akECDSAPub, digest[:], sigData) {
+		if !ecdsa.VerifyASN1(akPubECDSA, digest[:], sigData) {
 			log.Fatalf("VerifyASN1: signature didn't match")
 		}
 	*/
