@@ -337,7 +337,8 @@ func main() {
 	ret := 0
 	//ret = attestationExample()
 	//ret = randExample()
-	generateEK()
-	generateSRK()
+	//generateEK()
+	//generateSRK()
+	generateAK()
 	os.Exit(ret)
 }
