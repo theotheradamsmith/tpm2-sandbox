@@ -445,7 +445,7 @@ func generateAppK() {
 	// Verify attested data is signed by the EK public key
 	digest := sha256.Sum256(attestData)
 	if !ecdsa.VerifyASN1(akECDSAPub, digest[:], sigData) {
-		log.Fatalf("signature didn't match")
+		log.Fatalf("VerifyASN1: signature didn't match")
 	}
 
 	// At this point the attestation data's signature is correct and can be used to
