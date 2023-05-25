@@ -16,6 +16,7 @@ app:create_ek() {
 }
 
 app:create_srk() {
+    echo "Generating SRK..."
     tpm2_startauthsession --policy-session -S session.ctx
     tpm2_policysecret -S session.ctx -c 0x4000000B
     tpm2_create \
@@ -36,15 +37,21 @@ app:create_srk() {
 }
 
 app:gen_nonce() {
+    echo "Creating nonce and encrypting..."
     openssl rand -hex 6 > nonce.plain
     tpm2_makecredential -T none -e ek.pub -s nonce.plain -n $(cat srk.name) -o nonce.encrypted
 }
 
 app:decrypt_nonce() {
+    echo "Decrypting nonce..."
     tpm2_startauthsession --policy-session -S session.ctx
     tpm2_policysecret -S session.ctx -c 0x4000000B
     tpm2_activatecredential -c 0x81010002 -C ek.ctx -i nonce.encrypted -o nonce.decrypted -P "session:session.ctx"
     tpm2_flushcontext session.ctx
+}
+
+app:cleanup() {
+    tpm2_evictcontrol -C o -c 0x81010002
 }
 
 app::main() {
@@ -55,6 +62,7 @@ app::main() {
         -n "${BASH_ARGV0##*/}" \
         -o hqvV \
         -l all \
+        -l clean \
         -l create-ek \
         -l create-srk \
         -l decrypt-nonce \
@@ -71,6 +79,7 @@ app::main() {
             -q|--quiet) : @todo; shift ;;
             -v|--verbose) : vrb=1; shift ;;
             --all) shift; break ;;
+            --clean) app:cleanup; return 0 ;;
             --create-ek) app:create_ek; return 0 ;;
             --create-srk) app:create_srk; return 0 ;;
             --decrypt-nonce) app:decrypt_nonce; return 0 ;;
@@ -84,6 +93,7 @@ app::main() {
     app:create_srk
     app:gen_nonce
     app:decrypt_nonce
+    app:clean
 
     return 0
 }
