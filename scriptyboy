@@ -15,6 +15,38 @@ app:create_ek() {
     cat ek.yaml | grep '^name:' | awk '{ print $2 }' > ek.name
 }
 
+app:create_srk() {
+    tpm2_startauthsession --policy-session -S session.ctx
+    tpm2_policysecret -S session.ctx -c 0x4000000B
+    tpm2_create \
+        -C ek.ctx \
+        -P "session:session.ctx" \
+        -G rsa2048 \
+        -u srk.pub \
+        -r srk.priv \
+        -a 'restricted|decrypt|fixedtpm|fixedparent|sensitivedataorigin|userwithauth'
+    tpm2_flushcontext session.ctx
+    tpm2_startauthsession --policy-session -S session.ctx
+    tpm2_policysecret -S session.ctx -c 0x4000000B
+    tpm2_load -C ek.ctx -P "session:session.ctx" -u srk.pub -r srk.priv -c srk.ctx
+    tpm2_flushcontext session.ctx
+    #tpm2_evictcontrol -C o -c srk.ctx 0x81010002
+    tpm2_readpublic -c srk.ctx > srk.yaml
+    cat srk.yaml | grep '^name:' | awk '{ print $2 }' > srk.name
+}
+
+app:gen_nonce() {
+    openssl rand -hex 6 > nonce.plain
+    tpm2_makecredential -T none -e ek.pub -s nonce.plain -n $(cat srk.name) -o nonce.encrypted
+}
+
+app:decrypt_nonce() {
+    tpm2_startauthsession --policy-session -S session.ctx
+    tpm2_policysecret -S session.ctx -c 0x4000000B
+    tpm2_activatecredential -c 0x81010002 -C ek.ctx -i nonce.encrypted -o nonce.decrypted -P "session:session.ctx"
+    tpm2_flushcontext session.ctx
+}
+
 app::main() {
     local args vrb=0
 
@@ -23,6 +55,9 @@ app::main() {
         -n "${BASH_ARGV0##*/}" \
         -o hqvV \
         -l create-ek \
+        -l create-srk \
+        -l decrypt-nonce \
+        -l gen-nonce \
         -- "$@"
     )" || return 1
 
@@ -35,6 +70,9 @@ app::main() {
             -q|--quiet) : @todo; shift ;;
             -v|--verbose) : vrb=1; shift ;;
             --create-ek) app:create_ek; return 0 ;;
+            --create-srk) app:create_srk; return 0 ;;
+            --decrypt-nonce) app:decrypt_nonce; return 0 ;;
+            --gen-nonce) app:gen_nonce; return 0 ;;
             --) shift; break ;;
             *) app:io:puts "Unhandled option" ;;
         esac
