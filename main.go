@@ -3,9 +3,11 @@ package main
 import (
 	"bytes"
 	"crypto/ecdsa"
+	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -18,49 +20,6 @@ import (
 )
 
 const pathTPM string = "/dev/tpmrm0"
-
-func attestationExample() int {
-	config := &attest.OpenConfig{}
-	tpm, err := attest.OpenTPM(config)
-	if err != nil {
-		log.Fatal("Unable to open TPM")
-	}
-
-	eks, err := tpm.EKs()
-	if err != nil {
-		log.Fatal("Unable to fetch EK")
-	}
-	for i := 0; i < len(eks); i++ {
-		fmt.Println(eks[i].Certificate.PublicKeyAlgorithm)
-	}
-	ek := eks[0]
-
-	akConfig := &attest.AKConfig{}
-	ak, err := tpm.NewAK(akConfig)
-	if err != nil {
-		log.Fatal("Unable to create AK")
-	}
-
-	attestParams := ak.AttestationParameters()
-
-	akBytes, err := ak.Marshal()
-	if err != nil {
-		log.Fatal("Unable to perform AK Marshal")
-	}
-
-	if err := os.WriteFile("encrypted_ak.json", akBytes, 0600); err != nil {
-		log.Fatal("Unable to write AK")
-	}
-
-	if err := os.WriteFile("ek.out", ek.Certificate.Raw, 0600); err != nil {
-		log.Fatal("Unable to write EK")
-	}
-
-	if err := os.WriteFile("attest_params.out", attestParams.Public, 0600); err != nil {
-		log.Fatal("Unable to write attest Params")
-	}
-	return 0
-}
 
 func randExample() int {
 	f, err := os.OpenFile(pathTPM, os.O_RDWR, 0)
@@ -763,19 +722,6 @@ func generateAppK() {
 		log.Fatalf("expected ecdsa public key, got: %T", akPub)
 	}
 
-	/*
-		parsed := struct{ R, S *big.Int }{}
-		_, err = asn1.Unmarshal(sigData, &parsed)
-		if err != nil {
-			log.Fatalf("signature parsing failed: %v", err)
-		}
-
-		digest := sha256.Sum256(attestData)
-		if !ecdsa.Verify(akPubECDSA, digest[:], parsed.R, parsed.S) {
-			log.Fatalf("ecdsa.Verify() failed")
-		}
-	*/
-
 	if len(sigData) != 64 {
 		fmt.Printf("expected ecdsa signature len 64: got %d\n", len(sigData))
 	}
@@ -829,131 +775,9 @@ func generateAppK() {
 	pem.Encode(os.Stdout, b)
 }
 
-func test() {
-	f, err := os.OpenFile("/dev/tpmrm0", os.O_RDWR, 0)
-	if err != nil {
-		log.Fatalf("opening tpm: %v", err)
-	}
-	defer f.Close()
-
-	srkCtx, err := ioutil.ReadFile("srk.ctx")
-	if err != nil {
-		log.Fatalf("read srk: %v", err)
-	}
-	srk, err := tpm2.ContextLoad(f, srkCtx)
-	if err != nil {
-		log.Fatalf("load srk: %v", err)
-	}
-
-	aikCtx, err := ioutil.ReadFile("ak.ctx")
-	if err != nil {
-		log.Fatalf("read aik: %v", err)
-	}
-	aik, err := tpm2.ContextLoad(f, aikCtx)
-	if err != nil {
-		log.Fatalf("load aik: %v", err)
-	}
-
-	// Same as the AIK, but without the "restricted" flag.
-	tmpl := tpm2.Public{
-		Type:    tpm2.AlgECC,
-		NameAlg: tpm2.AlgSHA256,
-		Attributes: tpm2.FlagFixedTPM | // Key can't leave the TPM.
-			tpm2.FlagFixedParent | // Key can't change parent.
-			tpm2.FlagSensitiveDataOrigin | // Key created by the TPM (not imported).
-			tpm2.FlagUserWithAuth | // Uses (empty) password.
-			tpm2.FlagSign, // Key can be used to sign data.
-		ECCParameters: &tpm2.ECCParams{
-			Sign:    &tpm2.SigScheme{Alg: tpm2.AlgECDSA, Hash: tpm2.AlgSHA256},
-			CurveID: tpm2.CurveNISTP256,
-			Point: tpm2.ECPoint{
-				XRaw: make([]byte, 32),
-				YRaw: make([]byte, 32),
-			},
-		},
-	}
-
-	privBlob, pubBlob, _, hash, ticket, err := tpm2.CreateKey(f, srk, tpm2.PCRSelection{}, "", "", tmpl)
-	if err != nil {
-		log.Fatalf("create aik: %v", err)
-	}
-	appKey, _, err := tpm2.Load(f, srk, "", pubBlob, privBlob)
-	if err != nil {
-		log.Fatalf("load app key: %v", err)
-	}
-
-	// Write key context to disk.
-	appKeyCtx, err := tpm2.ContextSave(f, appKey)
-	if err != nil {
-		log.Fatalf("saving context: %v", err)
-	}
-	if err := ioutil.WriteFile("app.ctx", appKeyCtx, 0644); err != nil {
-		log.Fatalf("writing context: %v", err)
-	}
-
-	aikTPMPub, _, _, err := tpm2.ReadPublic(f, aik)
-	if err != nil {
-		log.Fatalf("read aik pub: %v", err)
-	}
-	sigParams := aikTPMPub.ECCParameters.Sign
-	aikPub, err := aikTPMPub.Key()
-	if err != nil {
-		log.Fatalf("getting aik public key")
-	}
-
-	attestData, sigData, err := tpm2.CertifyCreation(f, "", appKey, aik, nil, hash, *sigParams, ticket)
-	if err != nil {
-		log.Fatalf("certify creation: %v", err)
-	}
-
-	aikECDSAPub, ok := aikPub.(*ecdsa.PublicKey)
-	if !ok {
-		log.Fatalf("expected ecdsa public key, got: %T", aikPub)
-	}
-	if len(sigData) != 64 {
-		log.Fatalf("expected ecdsa signature")
-	}
-	var r, s big.Int
-	r.SetBytes(sigData[:len(sigData)/2])
-	s.SetBytes(sigData[len(sigData)/2:])
-
-	// Verify attested data is signed by the EK public key.
-	digest := sha256.Sum256(attestData)
-	if !ecdsa.Verify(aikECDSAPub, digest[:], &r, &s) {
-		log.Fatalf("signature didn't match")
-	}
-
-	// Verify the signed attestation was for this public blob.
-	a, err := tpm2.DecodeAttestationData(attestData)
-	if err != nil {
-		log.Fatalf("decode attestation: %v", err)
-	}
-	pubDigest := sha256.Sum256(pubBlob)
-	if !bytes.Equal(a.AttestedCreationInfo.Name.Digest.Value, pubDigest[:]) {
-		log.Fatalf("attestation was not for public blob")
-	}
-
-	// Decode public key and inspect key attributes.
-	tpmPub, err := tpm2.DecodePublic(pubBlob)
-	if err != nil {
-		log.Fatalf("decode public blob: %v", err)
-	}
-	pub, err := tpmPub.Key()
-	if err != nil {
-		log.Fatalf("decode public key: %v", err)
-	}
-	pubDER, err := x509.MarshalPKIXPublicKey(pub)
-	if err != nil {
-		log.Fatalf("encoding public key: %v", err)
-	}
-	b := &pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}
-	fmt.Printf("Key attributes: 0x%08x\n", tpmPub.Attributes)
-	pem.Encode(os.Stdout, b)
-}
-
+/*
 func main() {
 	ret := 0
-	//ret = attestationExample()
 	//ret = randExample()
 	//generateEK()
 	//generateSRK()
@@ -965,4 +789,141 @@ func main() {
 	webAttest()
 	webCert()
 	os.Exit(ret)
+}
+*/
+
+/*
+ */
+
+func attestationExample(tpm *attest.TPM) error {
+	eks, err := tpm.EKs()
+	if err != nil {
+		fmt.Println("Unable to fetch EK")
+		return err
+	}
+	for i := 0; i < len(eks); i++ {
+		fmt.Println(eks[i].Certificate.PublicKeyAlgorithm)
+	}
+	ek := eks[0]
+
+	akConfig := &attest.AKConfig{}
+	ak, err := tpm.NewAK(akConfig)
+	if err != nil {
+		fmt.Println("Unable to create AK")
+		return err
+	}
+
+	attestParams := ak.AttestationParameters()
+
+	akBytes, err := ak.Marshal()
+	if err != nil {
+		fmt.Println("Unable to perform AK Marshal")
+		return err
+	}
+
+	if err := os.WriteFile("encrypted_ak.json", akBytes, 0600); err != nil {
+		fmt.Println("Unable to write AK")
+		return err
+	}
+
+	if err := os.WriteFile("ek.out", ek.Certificate.Raw, 0600); err != nil {
+		fmt.Println("Unable to write EK")
+		return err
+	}
+
+	if err := os.WriteFile("attest_params.out", attestParams.Public, 0600); err != nil {
+		fmt.Println("Unable to write attest Params")
+		return err
+	}
+
+	return nil
+}
+
+func printInfo(tpm *attest.TPM) error {
+	info, err := tpm.Info()
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Version: %d\n", info.Version)
+	fmt.Printf("Interface: %d\n", info.Interface)
+	fmt.Printf("VendorInfo: 0x%x\n", info.VendorInfo)
+	fmt.Printf("Manufacturer: %v\n", info.Manufacturer)
+
+	return nil
+}
+
+func encodeEK(ek attest.EK) ([]byte, error) {
+	if ek.Certificate != nil {
+		fmt.Println("EK Certificate discovered")
+		return pem.EncodeToMemory(&pem.Block{
+			Type:  "CERTIFICATE",
+			Bytes: ek.Certificate.Raw,
+		}), nil
+	}
+	switch pub := ek.Public.(type) {
+	case *ecdsa.PublicKey:
+		fmt.Println("ECDSA EK public key discovered")
+		data, err := x509.MarshalPKIXPublicKey(pub)
+		if err != nil {
+			return nil, fmt.Errorf("marshalling ec public key: %v", err)
+		}
+		return pem.EncodeToMemory(&pem.Block{
+			Type:  "EC PUBLIC KEY",
+			Bytes: data,
+		}), nil
+	case *rsa.PublicKey:
+		return pem.EncodeToMemory(&pem.Block{
+			Type:  "RSA PUBLIC KEY",
+			Bytes: x509.MarshalPKCS1PublicKey(pub),
+		}), nil
+	default:
+		return nil, fmt.Errorf("unsupported public key type %T", pub)
+	}
+}
+
+func listEKs(tpm *attest.TPM) error {
+	eks, err := tpm.EKs()
+	if err != nil {
+		return fmt.Errorf("failed to read EKs: %v", err)
+	}
+	for _, ek := range eks {
+		data, err := encodeEK(ek)
+		if err != nil {
+			return fmt.Errorf("encoding ek: %v", err)
+		}
+		fmt.Printf("%s\n", data)
+	}
+	return nil
+}
+
+func runCommand(tpm *attest.TPM) error {
+	switch flag.Arg(0) {
+	case "example":
+		return attestationExample(tpm)
+	case "info":
+		return printInfo(tpm)
+	case "list-eks":
+		return listEKs(tpm)
+	default:
+		return fmt.Errorf("invalid command %q", flag.Arg(0))
+	}
+
+	return nil
+}
+
+func main() {
+	flag.Parse()
+
+	config := &attest.OpenConfig{}
+	tpm, err := attest.OpenTPM(config)
+	if err != nil {
+		log.Fatalf("Error opening TPM: %v", err)
+	}
+	err = runCommand(tpm)
+	tpm.Close()
+
+	if err != nil {
+		log.Fatalf("Error: %v", err)
+	}
 }
