@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+shopt -s extglob globstar
+
+app:io:puts() {
+    [[ "$1" == -- ]] && shift
+    local IFS=' '
+    printf '%s\n' "$*"
+}
+
+app:create_ek() {
+    tpm2_createek -c ek.ctx
+    tpm2_readpublic -c ek.ctx -o ek.pub > ek.yaml
+    cat ek.yaml | grep '^name:' | awk '{ print $2 }' > ek.name
+}
+
+app::main() {
+    local args vrb=0
+
+    args="$(
+        getopt \
+        -n "${BASH_ARGV0##*/}" \
+        -o hqvV\
+        -- "$@"
+    )" || return 1
+
+    eval set -- "$args"
+
+    while (( $# )); do
+        case "$1" in
+            -h|--help) app:io:puts help; return 0 ;;
+            -V|--version) app:io:puts version; return 0 ;;
+            -q|--quiet) : @todo; shift ;;
+            -v|--verbose) : vrb=1; shift ;;
+            --create-ek) : app:create_ek; return 0 ;;
+            --) shift; break ;;
+            *) app:io:puts "Unhandled option" ;;
+        esac
+    done
+}
+
+app::main "$@"
