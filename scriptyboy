@@ -20,7 +20,8 @@ app::main() {
     args="$(
         getopt \
         -n "${BASH_ARGV0##*/}" \
-        -o hqvV\
+        -o hqvV \
+        -l create-ek \
         -- "$@"
     )" || return 1
 
