@@ -80,10 +80,11 @@ app::main() {
         esac
     done
 
-    app:create_ek()
-    app:create_srk()
-    app:gen_nonce()
-    app:decrypt_nonce()
+    app:create_ek
+    app:create_srk
+    app:gen_nonce
+    app:decrypt_nonce
+
     return 0
 }
 
