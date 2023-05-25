@@ -30,7 +30,7 @@ app:create_srk() {
     tpm2_policysecret -S session.ctx -c 0x4000000B
     tpm2_load -C ek.ctx -P "session:session.ctx" -u srk.pub -r srk.priv -c srk.ctx
     tpm2_flushcontext session.ctx
-    #tpm2_evictcontrol -C o -c srk.ctx 0x81010002
+    tpm2_evictcontrol -C o -c srk.ctx 0x81010002
     tpm2_readpublic -c srk.ctx > srk.yaml
     cat srk.yaml | grep '^name:' | awk '{ print $2 }' > srk.name
 }
@@ -54,6 +54,7 @@ app::main() {
         getopt \
         -n "${BASH_ARGV0##*/}" \
         -o hqvV \
+        -l all \
         -l create-ek \
         -l create-srk \
         -l decrypt-nonce \
@@ -69,6 +70,7 @@ app::main() {
             -V|--version) app:io:puts version; return 0 ;;
             -q|--quiet) : @todo; shift ;;
             -v|--verbose) : vrb=1; shift ;;
+            --all) shift; break ;;
             --create-ek) app:create_ek; return 0 ;;
             --create-srk) app:create_srk; return 0 ;;
             --decrypt-nonce) app:decrypt_nonce; return 0 ;;
@@ -77,6 +79,12 @@ app::main() {
             *) app:io:puts "Unhandled option" ;;
         esac
     done
+
+    app:create_ek()
+    app:create_srk()
+    app:gen_nonce()
+    app:decrypt_nonce()
+    return 0
 }
 
 app::main "$@"
