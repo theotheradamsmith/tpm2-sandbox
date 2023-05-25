@@ -3,18 +3,15 @@ package main
 import (
 	"bytes"
 	"crypto/ecdsa"
-	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
-	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"math/big"
 	"os"
 
-	"github.com/google/go-attestation/attest"
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/credactivation"
 )
@@ -775,26 +772,21 @@ func generateAppK() {
 	pem.Encode(os.Stdout, b)
 }
 
-/*
 func main() {
 	ret := 0
 	//ret = randExample()
-	//generateEK()
-	//generateSRK()
-	//generateAK()
-	//generateAppK()
-	//test()
-	webEK()
-	webSRK()
-	webAttest()
-	webCert()
+	generateEK()
+	generateSRK()
+	generateAK()
+	generateAppK()
+	//webEK()
+	//webSRK()
+	//webAttest()
+	//webCert()
 	os.Exit(ret)
 }
-*/
 
 /*
- */
-
 func attestationExample(tpm *attest.TPM) error {
 	eks, err := tpm.EKs()
 	if err != nil {
@@ -908,8 +900,6 @@ func runCommand(tpm *attest.TPM) error {
 	default:
 		return fmt.Errorf("invalid command %q", flag.Arg(0))
 	}
-
-	return nil
 }
 
 func main() {
@@ -927,3 +917,4 @@ func main() {
 		log.Fatalf("Error: %v", err)
 	}
 }
+*/
