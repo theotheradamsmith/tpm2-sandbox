@@ -50,7 +50,7 @@ app:decrypt_nonce() {
     tpm2_flushcontext session.ctx
 }
 
-app:cleanup() {
+app:clean() {
     tpm2_evictcontrol -C o -c 0x81010002
 }
 
@@ -79,7 +79,7 @@ app::main() {
             -q|--quiet) : @todo; shift ;;
             -v|--verbose) : vrb=1; shift ;;
             --all) shift; break ;;
-            --clean) app:cleanup; return 0 ;;
+            --clean) app:clean; return 0 ;;
             --create-ek) app:create_ek; return 0 ;;
             --create-srk) app:create_srk; return 0 ;;
             --decrypt-nonce) app:decrypt_nonce; return 0 ;;
