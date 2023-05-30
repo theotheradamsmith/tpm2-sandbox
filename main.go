@@ -420,6 +420,11 @@ func generateEK() {
 	}
 
 	pubDER, err := x509.MarshalPKIXPublicKey(pub)
+
+	if err := ioutil.WriteFile("ek.pub", pubDER, 0644); err != nil {
+		log.Fatalf("writing pub: %v", err)
+	}
+
 	if err != nil {
 		log.Fatalf("encoding public key: %v", err)
 	}
@@ -456,7 +461,7 @@ func generateSRK() {
 		},
 	}
 
-	srk, _, err := tpm2.CreatePrimary(f, tpm2.HandleOwner, tpm2.PCRSelection{}, "", "", tmpl)
+	srk, pub, err := tpm2.CreatePrimary(f, tpm2.HandleOwner, tpm2.PCRSelection{}, "", "", tmpl)
 	if err != nil {
 		log.Fatalf("creating srk: %v", err)
 	}
@@ -467,6 +472,18 @@ func generateSRK() {
 	if err := ioutil.WriteFile("srk.ctx", out, 0644); err != nil {
 		log.Fatalf("writing context: %v", err)
 	}
+
+	pubDER, err := x509.MarshalPKIXPublicKey(pub)
+
+	if err := ioutil.WriteFile("ek.pub", pubDER, 0644); err != nil {
+		log.Fatalf("writing pub: %v", err)
+	}
+
+	if err != nil {
+		log.Fatalf("encoding public key: %v", err)
+	}
+	b := &pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}
+	pem.Encode(os.Stdout, b)
 }
 
 func generateAK() {
