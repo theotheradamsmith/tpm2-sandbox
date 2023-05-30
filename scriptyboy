@@ -53,7 +53,9 @@ app:create_srk() {
         -g sha256 \
         -c srk.ctx \
         -a 'fixedtpm|fixedparent|sensitivedataorigin|userwithauth|noda|restricted|decrypt' \
-        -u unique.dat
+        -u unique.dat \
+        --format=pem \
+        --output=srk.pub.pem
 }
 
 app:gen_nonce() {
