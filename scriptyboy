@@ -8,32 +8,52 @@ app:io:puts() {
     printf '%s\n' "$*"
 }
 
+#app:create_ek() {
+    #echo "Generating EK..."
+    #tpm2_createek -c ek.ctx
+    #tpm2_readpublic -c ek.ctx -o ek.pub > ek.yaml
+    #cat ek.yaml | grep '^name:' | awk '{ print $2 }' > ek.name
+#}
+
+#app:create_srk() {
+    #echo "Generating SRK..."
+    #tpm2_startauthsession --policy-session -S session.ctx
+    #tpm2_policysecret -S session.ctx -c 0x4000000B
+    #tpm2_create \
+        #-C ek.ctx \
+        #-P "session:session.ctx" \
+        #-G rsa2048 \
+        #-u srk.pub \
+        #-r srk.priv \
+        #-a 'restricted|decrypt|fixedtpm|fixedparent|sensitivedataorigin|userwithauth'
+    #tpm2_flushcontext session.ctx
+    #tpm2_startauthsession --policy-session -S session.ctx
+    #tpm2_policysecret -S session.ctx -c 0x4000000B
+    #tpm2_load -C ek.ctx -P "session:session.ctx" -u srk.pub -r srk.priv -c srk.ctx
+    #tpm2_flushcontext session.ctx
+    #tpm2_evictcontrol -C o -c srk.ctx 0x81010002
+    #tpm2_readpublic -c srk.ctx > srk.yaml
+    #cat srk.yaml | grep '^name:' | awk '{ print $2 }' > srk.name
+#}
+
 app:create_ek() {
     echo "Generating EK..."
-    tpm2_createek -c ek.ctx
-    tpm2_readpublic -c ek.ctx -o ek.pub > ek.yaml
-    cat ek.yaml | grep '^name:' | awk '{ print $2 }' > ek.name
+    tpm2_createek \
+        -G rsa \
+        -c ek.ctx \
+        -u ek.pub
 }
 
 app:create_srk() {
     echo "Generating SRK..."
-    tpm2_startauthsession --policy-session -S session.ctx
-    tpm2_policysecret -S session.ctx -c 0x4000000B
-    tpm2_create \
-        -C ek.ctx \
-        -P "session:session.ctx" \
-        -G rsa2048 \
-        -u srk.pub \
-        -r srk.priv \
-        -a 'restricted|decrypt|fixedtpm|fixedparent|sensitivedataorigin|userwithauth'
-    tpm2_flushcontext session.ctx
-    tpm2_startauthsession --policy-session -S session.ctx
-    tpm2_policysecret -S session.ctx -c 0x4000000B
-    tpm2_load -C ek.ctx -P "session:session.ctx" -u srk.pub -r srk.priv -c srk.ctx
-    tpm2_flushcontext session.ctx
-    tpm2_evictcontrol -C o -c srk.ctx 0x81010002
-    tpm2_readpublic -c srk.ctx > srk.yaml
-    cat srk.yaml | grep '^name:' | awk '{ print $2 }' > srk.name
+    app:gen_unique
+    tpm2_createprimary \
+        -C o \
+        -G rsa2048:aes128cfb \
+        -g sha256 \
+        -c srk.ctx \
+        -a 'fixedtpm|fixedparent|sensitivedataorigin|userwithauth|noda|restricted|decrypt' \
+        -u unique.dat
 }
 
 app:gen_nonce() {
@@ -54,6 +74,24 @@ app:clean() {
     tpm2_evictcontrol -C o -c 0x81010002
 }
 
+app:gen_unique() {
+    cat <( printf '\x00\x01' ) \
+        <( dd if=/dev/zero bs=254 count=1 2>/dev/null ) \
+        > unique.dat
+}
+
+app:help() {
+    app:io:puts "
+        --all: execute the full monty
+        --clean: evict control of all objects
+        --create-ek: create an endorsement key
+        --create-srk: create the storage root key
+        --gen-nonce
+        --decrypt-nonce
+        --gen-unique
+    "
+}
+
 app::main() {
     local args vrb=0
 
@@ -67,6 +105,7 @@ app::main() {
         -l create-srk \
         -l decrypt-nonce \
         -l gen-nonce \
+        -l gen-unique \
         -- "$@"
     )" || return 1
 
@@ -74,7 +113,7 @@ app::main() {
 
     while (( $# )); do
         case "$1" in
-            -h|--help) app:io:puts help; return 0 ;;
+            -h|--help) app:help; return 0 ;;
             -V|--version) app:io:puts version; return 0 ;;
             -q|--quiet) : @todo; shift ;;
             -v|--verbose) : vrb=1; shift ;;
@@ -84,6 +123,7 @@ app::main() {
             --create-srk) app:create_srk; return 0 ;;
             --decrypt-nonce) app:decrypt_nonce; return 0 ;;
             --gen-nonce) app:gen_nonce; return 0 ;;
+            --gen-unique) app:gen_unique; return 0 ;;
             --) shift; break ;;
             *) app:io:puts "Unhandled option" ;;
         esac
