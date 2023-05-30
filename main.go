@@ -475,7 +475,7 @@ func generateSRK() {
 
 	pubDER, err := x509.MarshalPKIXPublicKey(pub)
 
-	if err := ioutil.WriteFile("ek.pub", pubDER, 0644); err != nil {
+	if err := ioutil.WriteFile("srk.pub", pubDER, 0644); err != nil {
 		log.Fatalf("writing pub: %v", err)
 	}
 
