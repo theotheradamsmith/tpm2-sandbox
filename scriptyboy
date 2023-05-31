@@ -103,11 +103,13 @@ app:help() {
     app:io:puts "
         --all: execute the full monty
         --clean: evict control of all objects
+        --creaet-ak: create an attestation key
         --create-ek: create an endorsement key
         --create-srk: create the storage root key
         --gen-nonce
         --decrypt-nonce
         --gen-unique
+        --verify
     "
 }
 
