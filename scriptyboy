@@ -46,7 +46,7 @@ app:create_ak() {
     echo "" > akpass
     tpm2_create \
         -C srk.ctx \
-        -p akass \
+        -p akpass \
         -g sha256 \
         -G ecc256 \
         -a 'fixedtpm|fixedparent|sensitivedataorigin|userwithauth|sign' \
