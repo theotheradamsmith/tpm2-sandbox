@@ -116,6 +116,7 @@ app:verify() {
     #  1) The EK public key to encrypt the challenge to
     #  2) The AK public key blob, which includes content such as the key attributes
     #  3) The AK name, which is a hash of the public key blob
+    echo "verify"
 }
 
 app::main() {
