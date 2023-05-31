@@ -130,6 +130,7 @@ app::main() {
         -l clean \
         -l create-ek \
         -l create-srk \
+        -l create-ak \
         -l decrypt-nonce \
         -l gen-nonce \
         -l gen-unique \
@@ -147,6 +148,7 @@ app::main() {
             -v|--verbose) : vrb=1; shift ;;
             --all) shift; break ;;
             --clean) app:clean; return 0 ;;
+            --create-ak) app:create_ak; return 0 ;;
             --create-ek) app:create_ek; return 0 ;;
             --create-srk) app:create_srk; return 0 ;;
             --decrypt-nonce) app:decrypt_nonce; return 0 ;;
