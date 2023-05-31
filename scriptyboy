@@ -37,26 +37,27 @@ app:io:puts() {
 #}
 
 app:clean() {
-    tpm2_evictcontrol -C o -c 0x81010002
+    #tpm2_evictcontrol -C o -c 0x81010002
+    tpm2_flushcontext session.ctx
 }
 
 app:create_ak() {
     echo "Generating AK..."
-    echo "" > attpass
+    echo "" > akpass
     tpm2_create \
         -C srk.ctx \
-        -p attpass \
+        -p akass \
         -g sha256 \
         -G ecc256 \
         -a 'fixedtpm|fixedparent|sensitivedataorigin|userwithauth|sign' \
-        -u att.pub \
-        -r att.priv
+        -u ak.pub \
+        -r ak.priv
     tpm2_load \
         -C srk.ctx \
-        -u att.pub \
-        -r att.priv \
-        -c att.ctx \
-        -n att.name
+        -u ak.pub \
+        -r ak.priv \
+        -c ak.ctx \
+        -n ak.name
 }
 
 app:create_ek() {
@@ -121,7 +122,23 @@ app:verify() {
     #  2) The AK public key blob, which includes content such as the key attributes
     #  3) The AK name, which is a hash of the public key blob
     echo "Verifying..."
-
+    echo "Brevity is the soul of wit" > secret.data
+    ak_name_file_size=`stat --printf="%s" ak.name`
+    loaded_ak_name=`cat ak.name | xxd -p -c $file_size`
+    tpm2_makecredential \
+        -e ek.pub \
+        -s secret.data \
+        -n $loaded_ak_name \
+        -o mkcred.out
+    tpm2_startauthsession --policy-session -S session.ctx
+    tpm2_policysecret -S session.ctx -c e
+    tpm2_activatecredential \
+        -c ak.ctx \
+        -C ek.ctx \
+        -i mkcred.out \
+        -o actcred.out \
+        -p akpass \
+        -P"session:session.ctx" > verify.out
 }
 
 app::main() {
@@ -170,8 +187,8 @@ app::main() {
     app:create_ak
     #app:gen_nonce
     #app:decrypt_nonce
-    #app:clean
     app:verify
+    app:clean
 
     return 0
 }
