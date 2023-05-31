@@ -124,7 +124,7 @@ app:verify() {
     echo "Verifying..."
     echo "Brevity is the soul of wit" > secret.data
     ak_name_file_size=`stat --printf="%s" ak.name`
-    loaded_ak_name=`cat ak.name | xxd -p -c $file_size`
+    loaded_ak_name=`cat ak.name | xxd -p -c $ak_name_file_size`
     tpm2_makecredential \
         -e ek.pub \
         -s secret.data \
