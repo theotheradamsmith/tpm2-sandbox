@@ -48,7 +48,8 @@ app:create_ak() {
         -G ecc256 \
         -a 'fixedtpm|fixedparent|sensitivedataorigin|userwithauth|sign' \
         -u att.pub \
-        -r att.priv
+        -r att.priv \
+        -p attpass
     tpm2_load \
         -C srk.ctx \
         -u att.pub \
@@ -118,7 +119,8 @@ app:verify() {
     #  1) The EK public key to encrypt the challenge to
     #  2) The AK public key blob, which includes content such as the key attributes
     #  3) The AK name, which is a hash of the public key blob
-    echo "verify"
+    echo "Verifying..."
+
 }
 
 app::main() {
@@ -164,9 +166,11 @@ app::main() {
 
     app:create_ek
     app:create_srk
-    app:gen_nonce
-    app:decrypt_nonce
-    app:clean
+    app:create_ak
+    #app:gen_nonce
+    #app:decrypt_nonce
+    #app:clean
+    app:verify
 
     return 0
 }
