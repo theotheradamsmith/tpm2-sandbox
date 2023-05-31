@@ -36,6 +36,27 @@ app:io:puts() {
     #cat srk.yaml | grep '^name:' | awk '{ print $2 }' > srk.name
 #}
 
+app:clean() {
+    tpm2_evictcontrol -C o -c 0x81010002
+}
+
+app:create_ak() {
+    echo "Generating AK..."
+    tpm2_create \
+        -C srk.ctx \
+        -g sha256 \
+        -G ecc256 \
+        -a 'fixedtpm|fixedparent|sensitivedataorigin|userwithauth|sign' \
+        -u att.pub \
+        -r att.priv
+    tpm2_load \
+        -C srk.ctx \
+        -u att.pub \
+        -r att.priv \
+        -c att.ctx \
+        -n att.name
+}
+
 app:create_ek() {
     echo "Generating EK..."
     tpm2_createek \
@@ -58,12 +79,6 @@ app:create_srk() {
         --output=srk.pub.pem
 }
 
-app:gen_nonce() {
-    echo "Creating nonce and encrypting..."
-    openssl rand -hex 6 > nonce.plain
-    tpm2_makecredential -T none -e ek.pub -s nonce.plain -n $(cat srk.name) -o nonce.encrypted
-}
-
 app:decrypt_nonce() {
     echo "Decrypting nonce..."
     tpm2_startauthsession --policy-session -S session.ctx
@@ -72,8 +87,10 @@ app:decrypt_nonce() {
     tpm2_flushcontext session.ctx
 }
 
-app:clean() {
-    tpm2_evictcontrol -C o -c 0x81010002
+app:gen_nonce() {
+    echo "Creating nonce and encrypting..."
+    openssl rand -hex 6 > nonce.plain
+    tpm2_makecredential -T none -e ek.pub -s nonce.plain -n $(cat srk.name) -o nonce.encrypted
 }
 
 app:gen_unique() {
@@ -94,6 +111,13 @@ app:help() {
     "
 }
 
+app:verify() {
+    # The CA needs:
+    #  1) The EK public key to encrypt the challenge to
+    #  2) The AK public key blob, which includes content such as the key attributes
+    #  3) The AK name, which is a hash of the public key blob
+}
+
 app::main() {
     local args vrb=0
 
@@ -108,6 +132,7 @@ app::main() {
         -l decrypt-nonce \
         -l gen-nonce \
         -l gen-unique \
+        -l verify \
         -- "$@"
     )" || return 1
 
@@ -126,6 +151,7 @@ app::main() {
             --decrypt-nonce) app:decrypt_nonce; return 0 ;;
             --gen-nonce) app:gen_nonce; return 0 ;;
             --gen-unique) app:gen_unique; return 0 ;;
+            --verify) app:verify; return 0 ;;
             --) shift; break ;;
             *) app:io:puts "Unhandled option" ;;
         esac
