@@ -42,14 +42,15 @@ app:clean() {
 
 app:create_ak() {
     echo "Generating AK..."
+    echo "" > attpass
     tpm2_create \
         -C srk.ctx \
+        -p attpass \
         -g sha256 \
         -G ecc256 \
         -a 'fixedtpm|fixedparent|sensitivedataorigin|userwithauth|sign' \
         -u att.pub \
-        -r att.priv \
-        -p attpass
+        -r att.priv
     tpm2_load \
         -C srk.ctx \
         -u att.pub \
