@@ -49,8 +49,8 @@ app:create_ak() {
     tpm2_create \
         -C srk.handle \
         -g sha256 \
-        -G ecc256 \
-        -a 'fixedtpm|fixedparent|sensitivedataorigin|userwithauth|sign' \
+        -G ecc256:ecdsa:null \
+        -a 'fixedtpm|fixedparent|sensitivedataorigin|userwithauth|restricted|sign' \
         -u ak.pub \
         -r ak.priv
     tpm2_load \
