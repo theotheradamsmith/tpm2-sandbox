@@ -46,10 +46,8 @@ app:clean() {
 
 app:create_ak() {
     echo "Generating AK..."
-    echo "" > akpass
     tpm2_create \
         -C srk.handle \
-        -p akpass \
         -g sha256 \
         -G ecc256 \
         -a 'fixedtpm|fixedparent|sensitivedataorigin|userwithauth|sign' \
@@ -143,7 +141,6 @@ app:verify() {
         -C ek.ctx \
         -i mkcred.out \
         -o actcred.out \
-        -p akpass \
         -P"session:session.ctx" > verify.out
 }
 
