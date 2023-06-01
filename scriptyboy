@@ -50,7 +50,7 @@ app:create_ak() {
         -C srk.handle \
         -g sha256 \
         -G ecc256 \
-        -a 'fixedtpm|fixedparent|sensitivedataorigin|userwithauth|sign' \
+        -a 'fixedtpm|fixedparent|sensitivedataorigin|userwithauth|restricted|sign' \
         -u ak.pub \
         -r ak.priv
     tpm2_load \
