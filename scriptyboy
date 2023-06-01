@@ -36,6 +36,29 @@ app:io:puts() {
     #cat srk.yaml | grep '^name:' | awk '{ print $2 }' > srk.name
 #}
 
+app:ca_challenge() {
+    # Confirm validity of the EK cert
+    wget -O - -q https://www.infineon.com/dgdl/Infineon-TPM_RSA_Root_CA-C-v01_00-EN.cer?fileId=5546d46253f6505701540496a5641d20 \
+        | openssl x509 -out Infineon-RSA-Root.pem
+    wget -O - -q https://pki.infineon.com/OptigaRsaMfrCA036/OptigaRsaMfrCA036.crt \
+        | openssl x509 -out Infineon-RSA-Int.pem
+
+    openssl verify \
+        -verbose \
+        -CAfile <( cat Infineon-RSA-Root.pem Infineon-RSA-Int.pem ) \
+        RSA_EK_cert.bin
+
+
+    echo "Brevity is the soul of wit" > secret.data
+    ak_name_file_size=`stat --printf="%s" ak.name`
+    loaded_ak_name=`cat ak.name | xxd -p -c $ak_name_file_size`
+    tpm2_makecredential \
+        -e ek.pub \
+        -s secret.data \
+        -n $loaded_ak_name \
+        -o mkcred.out
+}
+
 app:clean() {
     #tpm2_evictcontrol -C o -c 0x81010002
     # Terminate the auth session
@@ -67,6 +90,8 @@ app:create_ek() {
         -G rsa \
         -c ek.ctx \
         -u ek.pub
+    # Save the EK certificates for use later
+    tpm2_getekcertificate -o RSA_EK_cert.bin -o ECC_EK_cert.bin
 }
 
 app:create_srk() {
@@ -126,14 +151,7 @@ app:verify() {
     #  2) The AK public key blob, which includes content such as the key attributes
     #  3) The AK name, which is a hash of the public key blob
     echo "Verifying..."
-    echo "Brevity is the soul of wit" > secret.data
-    ak_name_file_size=`stat --printf="%s" ak.name`
-    loaded_ak_name=`cat ak.name | xxd -p -c $ak_name_file_size`
-    tpm2_makecredential \
-        -e ek.pub \
-        -s secret.data \
-        -n $loaded_ak_name \
-        -o mkcred.out
+    app:ca_challenge
     tpm2_startauthsession --policy-session -S session.ctx
     tpm2_policysecret -S session.ctx -c e
     tpm2_activatecredential \
