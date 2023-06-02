@@ -36,7 +36,26 @@ app:io:puts() {
     #cat srk.yaml | grep '^name:' | awk '{ print $2 }' > srk.name
 #}
 
+app:activate_credential() {
+    echo "Activating CA credential..."
+    tpm2_startauthsession --policy-session -S session.ctx
+    tpm2_policysecret -S session.ctx -c e
+    tpm2_activatecredential \
+        -c ak.ctx \
+        -C ek.ctx \
+        -i mkcred.out \
+        -o actcred.out \
+        -P"session:session.ctx" > verify.out
+    # Terminate the auth session
+    tpm2_flushcontext session.ctx
+}
+
 app:ca_challenge() {
+    # The CA needs:
+    #  1) The EK public key to encrypt the challenge to
+    #  2) The AK public key blob, which includes content such as the key attributes
+    #  3) The AK name, which is a hash of the public key blob
+
     # Get manufacturer CA certs
     wget -O - -q https://www.infineon.com/dgdl/Infineon-TPM_RSA_Root_CA-C-v01_00-EN.cer?fileId=5546d46253f6505701540496a5641d20 \
         | openssl x509 -out Infineon-RSA-Root.pem
@@ -53,7 +72,7 @@ app:ca_challenge() {
     openssl x509 -inform der -in RSA_EK_cert.bin -pubkey -noout > RSA_EK_pub.pem
 
     # Use the public key from the user's EK cert to prepare the challenge
-    echo "Brevity is the soul of wit" > secret.data
+    echo "Aren't cats just the best?" > secret.data
     ak_name_file_size=`stat --printf="%s" ak.name`
     loaded_ak_name=`cat ak.name | xxd -p -c $ak_name_file_size`
     tpm2_makecredential \
@@ -66,8 +85,32 @@ app:ca_challenge() {
         -o mkcred.out
 }
 
+app:ca_verify_appk() {
+    # This verification requires:
+    #   1) the AK public key in PEM format
+    #   2) the AppK attestation signature
+    #   3) The AppK attestation binary
+    echo "Verifying Appk..."
+    openssl dgst \
+        -verify ak.pub.pem \
+        -keyform PEM \
+        -sha256 \
+        -signature appk.attestation.sig \
+        -binary appk.attestation
+}
+
 app:certify_appk() {
     echo "Certifying Appk..."
+    tpm2_certifycreation \
+        -C ak.ctx \
+        -c appk.ctx \
+        -d appk.creation.dig \
+        -t appk.creation.ticket \
+        -g sha256 \
+        -o appk.attestation.sig \
+        --attestation appk.attestation \
+        -f plain \
+        -s ecdsa
 }
 
 app:clean() {
@@ -84,7 +127,9 @@ app:create_ak() {
         -G ecc256:ecdsa:null \
         -a 'fixedtpm|fixedparent|sensitivedataorigin|userwithauth|restricted|sign' \
         -u ak.pub \
-        -r ak.priv
+        -r ak.priv \
+        --format=pem \
+        --output=ak.pub.pem
     tpm2_load \
         -C srk.handle \
         -u ak.pub \
@@ -105,15 +150,18 @@ app:create_appk() {
         -a 'fixedtpm|fixedparent|sensitivedataorigin|userwithauth|sign' \
         -u appk.pub \
         -r appk.priv \
-        -t appkcreation.ticket \
-        -d appkcreation.dig \
-        --creation-data appkcreation.dat
+        -t appk.creation.ticket \
+        -d appk.creation.dig \
+        --creation-data appk.creation.dat \
+        --format=pem \
+        --output=appk.pub.pem
     tpm2_load \
         -C srk.handle \
         -u appk.pub \
         -r appk.priv \
         -c appk.ctx \
         -n appk.name
+    app:certify_appk
 }
 
 app:create_ek() {
@@ -141,6 +189,12 @@ app:create_srk() {
     # Make the key persistent and store the handle for use as parent context
     # for child objects
     tpm2_evictcontrol -C o -c srk.ctx -o srk.handle
+}
+
+app:credential_activation() {
+    app:ca_challenge
+    app:activate_credential
+    diff -q secret.data actcred.out >/dev/null && echo "EK is legitimate" || echo "Bad EK"
 }
 
 app:decrypt_nonce() {
@@ -178,25 +232,6 @@ app:help() {
     "
 }
 
-app:verify() {
-    # The CA needs:
-    #  1) The EK public key to encrypt the challenge to
-    #  2) The AK public key blob, which includes content such as the key attributes
-    #  3) The AK name, which is a hash of the public key blob
-    echo "Verifying..."
-    app:ca_challenge
-    tpm2_startauthsession --policy-session -S session.ctx
-    tpm2_policysecret -S session.ctx -c e
-    tpm2_activatecredential \
-        -c ak.ctx \
-        -C ek.ctx \
-        -i mkcred.out \
-        -o actcred.out \
-        -P"session:session.ctx" > verify.out
-    # Terminate the auth session
-    tpm2_flushcontext session.ctx
-}
-
 app::main() {
     local args vrb=0
 
@@ -213,7 +248,6 @@ app::main() {
         -l decrypt-nonce \
         -l gen-nonce \
         -l gen-unique \
-        -l verify \
         -- "$@"
     )" || return 1
 
@@ -234,7 +268,6 @@ app::main() {
             --decrypt-nonce) app:decrypt_nonce; return 0 ;;
             --gen-nonce) app:gen_nonce; return 0 ;;
             --gen-unique) app:gen_unique; return 0 ;;
-            --verify) app:verify; return 0 ;;
             --) shift; break ;;
             *) app:io:puts "Unhandled option" ;;
         esac
@@ -243,10 +276,12 @@ app::main() {
     app:create_ek
     app:create_srk
     app:create_ak
+    app:create_appk
+    app:credential_activation
+    app:ca_verify_appk
+
     #app:gen_nonce
     #app:decrypt_nonce
-    app:verify
-    app:create_appk
     #app:clean
 
     return 0
