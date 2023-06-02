@@ -91,6 +91,24 @@ app:create_ak() {
         -n ak.name
 }
 
+app:create_appk() {
+    echo "Generating AppK..."
+    # The App Key is the same as our AK, but without the restricted flag
+    tpm2_create \
+        -C srk.handle \
+        -g sha256 \
+        -G ecc256:ecdsa:null \
+        -a 'fixedtpm|fixedparent|sensitivedataorigin|userwithauth|sign' \
+        -u appk.pub \
+        -r appk.priv
+    tpm2_load \
+        -C srk.handle \
+        -u appk.pub \
+        -r appk.priv \
+        -c appk.ctx \
+        -n appk.name
+}
+
 app:create_ek() {
     echo "Generating EK..."
     tpm2_createek \
@@ -143,6 +161,7 @@ app:help() {
         --all: execute the full monty
         --clean: evict control of all objects
         --creaet-ak: create an attestation key
+        --create-appk: create an application key
         --create-ek: create an endorsement key
         --create-srk: create the storage root key
         --gen-nonce
@@ -181,6 +200,7 @@ app::main() {
         -l create-ek \
         -l create-srk \
         -l create-ak \
+        -l create-appk \
         -l decrypt-nonce \
         -l gen-nonce \
         -l gen-unique \
@@ -199,6 +219,7 @@ app::main() {
             --all) shift; break ;;
             --clean) app:clean; return 0 ;;
             --create-ak) app:create_ak; return 0 ;;
+            --create-appk) app:create_appk; return 0 ;;
             --create-ek) app:create_ek; return 0 ;;
             --create-srk) app:create_srk; return 0 ;;
             --decrypt-nonce) app:decrypt_nonce; return 0 ;;
@@ -216,6 +237,7 @@ app::main() {
     #app:gen_nonce
     #app:decrypt_nonce
     app:verify
+    app:create_appk
     app:clean
 
     return 0
