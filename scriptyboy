@@ -52,7 +52,7 @@ app:activate_credential() {
 
 app:ca_challenge() {
     # The CA needs:
-    #  1) The EK public key to encrypt the challenge to
+    #  1) The EK public key to encrypt the challenge to (or, better, the EK cert to extract the key from to use?)
     #  2) The AK public key blob, which includes content such as the key attributes
     #  3) The AK name, which is a hash of the public key blob
 
@@ -91,6 +91,8 @@ app:ca_verify_appk() {
     #   2) the AppK attestation signature
     #   3) The AppK attestation binary
     echo "Verifying Appk..."
+    # tpm2_verifysignature -c ak.ctx -g sha256 -m appk.attestation -s appk.attestation.sig -f ecdsa
+    # tpm2_checkquote -u ak.pub.pem -m appk.attestation -s appk.attestation.sig
     openssl dgst \
         -verify ak.pub.pem \
         -keyform PEM \
@@ -221,14 +223,7 @@ app:help() {
     app:io:puts "
         --all: execute the full monty
         --clean: evict control of all objects
-        --creaet-ak: create an attestation key
         --create-appk: create an application key
-        --create-ek: create an endorsement key
-        --create-srk: create the storage root key
-        --gen-nonce
-        --decrypt-nonce
-        --gen-unique
-        --verify
     "
 }
 
@@ -241,13 +236,7 @@ app::main() {
         -o hqvV \
         -l all \
         -l clean \
-        -l create-ek \
-        -l create-srk \
-        -l create-ak \
         -l create-appk \
-        -l decrypt-nonce \
-        -l gen-nonce \
-        -l gen-unique \
         -- "$@"
     )" || return 1
 
@@ -261,13 +250,7 @@ app::main() {
             -v|--verbose) : vrb=1; shift ;;
             --all) shift; break ;;
             --clean) app:clean; return 0 ;;
-            --create-ak) app:create_ak; return 0 ;;
             --create-appk) app:create_appk; return 0 ;;
-            --create-ek) app:create_ek; return 0 ;;
-            --create-srk) app:create_srk; return 0 ;;
-            --decrypt-nonce) app:decrypt_nonce; return 0 ;;
-            --gen-nonce) app:gen_nonce; return 0 ;;
-            --gen-unique) app:gen_unique; return 0 ;;
             --) shift; break ;;
             *) app:io:puts "Unhandled option" ;;
         esac
