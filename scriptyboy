@@ -37,23 +37,29 @@ app:io:puts() {
 #}
 
 app:ca_challenge() {
-    # Confirm validity of the EK cert
+    # Get manufacturer CA certs
     wget -O - -q https://www.infineon.com/dgdl/Infineon-TPM_RSA_Root_CA-C-v01_00-EN.cer?fileId=5546d46253f6505701540496a5641d20 \
         | openssl x509 -out Infineon-RSA-Root.pem
     wget -O - -q https://pki.infineon.com/OptigaRsaMfrCA036/OptigaRsaMfrCA036.crt \
         | openssl x509 -out Infineon-RSA-Int.pem
 
+    # Confirm validity of the user's EK cert
     openssl verify \
         -verbose \
         -CAfile <( cat Infineon-RSA-Root.pem Infineon-RSA-Int.pem ) \
         RSA_EK_cert.bin
 
+    # Extract public key from user's EK cert
+    openssl x509 -inform der -in RSA_EK_cert.bin -pubkey -noout > RSA_EK_pub.pem
 
+    # Use the public key from the user's EK cert to prepare the challenge
     echo "Brevity is the soul of wit" > secret.data
     ak_name_file_size=`stat --printf="%s" ak.name`
     loaded_ak_name=`cat ak.name | xxd -p -c $ak_name_file_size`
     tpm2_makecredential \
-        -e ek.pub \
+        -Q \
+        -G rsa \
+        -u RSA_EK_pub.pem \
         -s secret.data \
         -n $loaded_ak_name \
         -o mkcred.out
