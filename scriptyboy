@@ -68,8 +68,6 @@ app:ca_challenge() {
 
 app:clean() {
     #tpm2_evictcontrol -C o -c 0x81010002
-    # Terminate the auth session
-    tpm2_flushcontext session.ctx
     # Remove the peristent handle for the SRK
     tpm2_evictcontrol -C o -c srk.handle
 }
@@ -186,6 +184,8 @@ app:verify() {
         -i mkcred.out \
         -o actcred.out \
         -P"session:session.ctx" > verify.out
+    # Terminate the auth session
+    tpm2_flushcontext session.ctx
 }
 
 app::main() {
