@@ -386,22 +386,22 @@ func generateAppK() {
 		fmt.Printf("expected ecdsa signature len 64: got %d\n", len(sigData))
 	}
 	/*
-			var r, s big.Int
-			r.SetBytes(sigData[:len(sigData)/2])
-			s.SetBytes(sigData[len(sigData)/2:])
-
-			// Verify attested data is signed by the EK public key
-			digest := sha256.Sum256(attestData)
-			if !ecdsa.Verify(akPubECDSA, digest[:], &r, &s) {
-				log.Fatalf("signature didn't match")
-			}
+		var r, s big.Int
+		r.SetBytes(sigData[:len(sigData)/2])
+		s.SetBytes(sigData[len(sigData)/2:])
 
 		// Verify attested data is signed by the EK public key
 		digest := sha256.Sum256(attestData)
-		if !ecdsa.VerifyASN1(akPubECDSA, digest[:], sigData) {
-			log.Fatalf("VerifyASN1: signature didn't match")
+		if !ecdsa.Verify(akPubECDSA, digest[:], &r, &s) {
+			log.Fatalf("signature didn't match")
 		}
 	*/
+
+	// Verify attested data is signed by the EK public key
+	digest := sha256.Sum256(attestData)
+	if !ecdsa.VerifyASN1(akPubECDSA, digest[:], sigData) {
+		fmt.Println("VerifyASN1: signature didn't match")
+	}
 
 	// At this point the attestation data's signature is correct and can be used to
 	// further verify the application key's public key blob. Unpack the blob to
