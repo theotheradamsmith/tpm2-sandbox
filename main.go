@@ -381,6 +381,7 @@ func generateAppK() {
 	if !ok {
 		log.Fatalf("expected ecdsa public key, got: %T", akPub)
 	}
+	fmt.Printf("akPubECDSA: %0x\n", akPubECDSA)
 
 	if len(sigData) != 64 {
 		fmt.Printf("expected ecdsa signature len 64: got %d\n", len(sigData))
