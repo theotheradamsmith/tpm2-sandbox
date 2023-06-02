@@ -58,6 +58,7 @@ app:ca_challenge() {
     loaded_ak_name=`cat ak.name | xxd -p -c $ak_name_file_size`
     tpm2_makecredential \
         -Q \
+        --tcti none \
         -G rsa \
         -u RSA_EK_pub.pem \
         -s secret.data \
