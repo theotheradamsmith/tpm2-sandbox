@@ -238,7 +238,7 @@ app::main() {
     #app:decrypt_nonce
     app:verify
     app:create_appk
-    app:clean
+    #app:clean
 
     return 0
 }
