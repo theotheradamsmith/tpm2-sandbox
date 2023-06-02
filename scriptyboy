@@ -66,6 +66,10 @@ app:ca_challenge() {
         -o mkcred.out
 }
 
+app:certify_appk() {
+    echo "Certifying Appk..."
+}
+
 app:clean() {
     #tpm2_evictcontrol -C o -c 0x81010002
     # Remove the peristent handle for the SRK
@@ -92,13 +96,18 @@ app:create_ak() {
 app:create_appk() {
     echo "Generating AppK..."
     # The App Key is the same as our AK, but without the restricted flag
+    # We will also need to store the creation hash and creation ticket for
+    # certification
     tpm2_create \
         -C srk.handle \
         -g sha256 \
         -G ecc256:ecdsa:null \
         -a 'fixedtpm|fixedparent|sensitivedataorigin|userwithauth|sign' \
         -u appk.pub \
-        -r appk.priv
+        -r appk.priv \
+        -t appkcreation.ticket \
+        -d appkcreation.dig \
+        --creation-data appkcreation.dat
     tpm2_load \
         -C srk.handle \
         -u appk.pub \
