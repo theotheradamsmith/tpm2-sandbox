@@ -41,7 +41,7 @@ app:activate_credential() {
     tpm2_startauthsession --policy-session -S session.ctx
     tpm2_policysecret -S session.ctx -c e
     tpm2_activatecredential \
-        -c ak.ctx \
+        -c ak.handle \
         -C ek.ctx \
         -i mkcred.out \
         -o actcred.out \
@@ -104,8 +104,8 @@ app:ca_verify_appk() {
 app:certify_appk() {
     echo "Certifying Appk..."
     tpm2_certifycreation \
-        -C ak.ctx \
-        -c appk.ctx \
+        -C ak.handle \
+        -c appk.handle \
         -d appk.creation.dig \
         -t appk.creation.ticket \
         -g sha256 \
@@ -119,6 +119,8 @@ app:clean() {
     #tpm2_evictcontrol -C o -c 0x81010002
     # Remove the peristent handle for the SRK
     tpm2_evictcontrol -C o -c srk.handle
+    tpm2_evictcontrol -C o -c ak.handle
+    tpm2_evictcontrol -C o -c appk.handle
 }
 
 app:create_ak() {
@@ -138,6 +140,7 @@ app:create_ak() {
         -r ak.priv \
         -c ak.ctx \
         -n ak.name
+    tpm2_evictcontrol -C o -c ak.ctx -o ak.handle
 }
 
 app:create_appk() {
@@ -163,6 +166,7 @@ app:create_appk() {
         -r appk.priv \
         -c appk.ctx \
         -n appk.name
+    tpm2_evictcontrol -C o -c appk.ctx -o appk.handle
     app:certify_appk
 }
 
