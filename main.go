@@ -472,6 +472,8 @@ func main() {
 		}
 
 		if !bytes.Equal(attestedNameDigest, pubDigest[:]) {
+			fmt.Printf("Attested Name: %v\n", attestedNameDigest)
+			fmt.Printf("PubDigest Val: %v\n\n", pubDigest[:])
 			log.Fatalf("attestation was not for public blob")
 		} else {
 			fmt.Println("Attestation was valid")
