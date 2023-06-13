@@ -451,9 +451,15 @@ func main() {
 		return
 	}
 
-	fileName := os.Args[1]
-	if fileName != "99" {
-		attestData, err := ioutil.ReadFile(fileName)
+	attestation := os.Args[1]
+	pub := os.Args[2]
+	if attestation != "99" {
+		attestData, err := ioutil.ReadFile(attestation)
+		if err != nil {
+			fmt.Printf("Error reading file: %v\n", err)
+			return
+		}
+		pubDigest, err := ioutil.ReadFile(pub)
 		if err != nil {
 			fmt.Printf("Error reading file: %v\n", err)
 			return
@@ -464,7 +470,11 @@ func main() {
 			fmt.Printf("Error parsing attestation: %v\n", err)
 		}
 
-		fmt.Printf("Digest: %v\n", attestedNameDigest)
+		if !bytes.Equal(attestedNameDigest, pubDigest) {
+			log.Fatalf("attestation was not for public blob")
+		} else {
+			fmt.Println("Attestation was valid")
+		}
 	} else {
 		ret := 0
 
