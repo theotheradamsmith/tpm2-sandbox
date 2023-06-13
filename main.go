@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/credactivation"
+	"github.com/google/go-tpm/tpmutil"
 )
 
 const pathTPM string = "/dev/tpmrm0"
@@ -435,11 +436,42 @@ func generateAppK() {
 	pem.Encode(os.Stdout, b)
 }
 
+func getAttestedCreationNameDigest(attestData []byte) (tpmutil.U16Bytes, error) {
+	a, err := tpm2.DecodeAttestationData(attestData)
+	if err != nil {
+		return nil, err
+	}
+
+	return a.AttestedCreationInfo.Name.Digest.Value, nil
+}
+
 func main() {
-	ret := 0
-	generateEK()
-	generateSRK()
-	generateAK()
-	generateAppK()
-	os.Exit(ret)
+	if len(os.Args) < 2 {
+		fmt.Println("This is the arguments version of this nonsense")
+		return
+	}
+
+	fileName := os.Args[1]
+	if fileName != "99" {
+		attestData, err := ioutil.ReadFile(fileName)
+		if err != nil {
+			fmt.Printf("Error reading file: %v\n", err)
+			return
+		}
+
+		attestedNameDigest, err := getAttestedCreationNameDigest(attestData)
+		if err != nil {
+			fmt.Printf("Error parsing attestation: %v\n", err)
+		}
+
+		fmt.Printf("Digest: %v\n", attestedNameDigest)
+	} else {
+		ret := 0
+
+		generateEK()
+		generateSRK()
+		generateAK()
+		generateAppK()
+		os.Exit(ret)
+	}
 }
