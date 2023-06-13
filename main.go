@@ -464,7 +464,7 @@ func main() {
 			fmt.Printf("Error reading file: %v\n", err)
 			return
 		}
-		pubDigest := sha256.Sum256(pubBlob)
+		fmt.Printf("Contents of pubBlob: %x\n", pubBlob)
 		tpmPub, err := tpm2.DecodePublic(pubBlob)
 		if err != nil {
 			log.Fatalf("decode public blob: %v", err)
@@ -486,6 +486,7 @@ func main() {
 			fmt.Printf("Error parsing attestation: %v\n", err)
 		}
 
+		pubDigest := sha256.Sum256(pubBlob)
 		if !bytes.Equal(attestedNameDigest, pubDigest[:]) {
 			fmt.Printf("\n\nAttested Name: %v\n", attestedNameDigest)
 			fmt.Printf("PubDigest Val: %v\n\n", pubDigest[:])
