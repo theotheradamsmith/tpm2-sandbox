@@ -459,18 +459,19 @@ func main() {
 			fmt.Printf("Error reading file: %v\n", err)
 			return
 		}
-		pubDigest, err := ioutil.ReadFile(pub)
+		pubBlob, err := ioutil.ReadFile(pub)
 		if err != nil {
 			fmt.Printf("Error reading file: %v\n", err)
 			return
 		}
+		pubDigest := sha256.Sum256(pubBlob)
 
 		attestedNameDigest, err := getAttestedCreationNameDigest(attestData)
 		if err != nil {
 			fmt.Printf("Error parsing attestation: %v\n", err)
 		}
 
-		if !bytes.Equal(attestedNameDigest, pubDigest) {
+		if !bytes.Equal(attestedNameDigest, pubDigest[:]) {
 			log.Fatalf("attestation was not for public blob")
 		} else {
 			fmt.Println("Attestation was valid")
