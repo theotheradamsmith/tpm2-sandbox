@@ -465,6 +465,21 @@ func main() {
 			return
 		}
 		pubDigest := sha256.Sum256(pubBlob)
+		tpmPub, err := tpm2.DecodePublic(pubBlob)
+		if err != nil {
+			log.Fatalf("decode public blob: %v", err)
+		}
+		pub, err := tpmPub.Key()
+		if err != nil {
+			log.Fatalf("decode public key: %v", err)
+		}
+		pubDER, err := x509.MarshalPKIXPublicKey(pub)
+		if err != nil {
+			log.Fatalf("encoding public key: %v", err)
+		}
+		b := &pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}
+		fmt.Printf("Key attributes: 0x%08x\n", tpmPub.Attributes)
+		pem.Encode(os.Stdout, b)
 
 		attestedNameDigest, err := getAttestedCreationNameDigest(attestData)
 		if err != nil {
@@ -472,7 +487,7 @@ func main() {
 		}
 
 		if !bytes.Equal(attestedNameDigest, pubDigest[:]) {
-			fmt.Printf("Attested Name: %v\n", attestedNameDigest)
+			fmt.Printf("\n\nAttested Name: %v\n", attestedNameDigest)
 			fmt.Printf("PubDigest Val: %v\n\n", pubDigest[:])
 			log.Fatalf("attestation was not for public blob")
 		} else {
