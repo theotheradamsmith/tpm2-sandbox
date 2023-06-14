@@ -20,12 +20,15 @@ const pathTPM string = "/dev/tpmrm0"
 
 func generateEK() {
 	fmt.Println("Generating EK...")
+
+	// Open the TPM
 	f, err := os.OpenFile(pathTPM, os.O_RDWR, 0)
 	if err != nil {
 		log.Fatalf("opening tpm: %v", err)
 	}
 	defer f.Close()
 
+	// Define EK parameters
 	tmpl := tpm2.Public{
 		Type:    tpm2.AlgRSA,
 		NameAlg: tpm2.AlgSHA256,
@@ -53,11 +56,13 @@ func generateEK() {
 		},
 	}
 
+	// Create EK
 	ek, pub, err := tpm2.CreatePrimary(f, tpm2.HandleEndorsement, tpm2.PCRSelection{}, "", "", tmpl)
 	if err != nil {
 		log.Fatalf("creating ek: %v", err)
 	}
 
+	// Save EK context
 	out, err := tpm2.ContextSave(f, ek)
 	if err != nil {
 		log.Fatalf("saving context: %v", err)
@@ -66,16 +71,22 @@ func generateEK() {
 		log.Fatalf("writing context: %v", err)
 	}
 
+	// Store EK public key
 	pubDER, err := x509.MarshalPKIXPublicKey(pub)
-
-	if err := ioutil.WriteFile("ek.pub", pubDER, 0644); err != nil {
-		log.Fatalf("writing pub: %v", err)
-	}
-
 	if err != nil {
 		log.Fatalf("encoding public key: %v", err)
 	}
+
+	if err := ioutil.WriteFile("ek.pub", pubDER, 0644); err != nil {
+		log.Fatalf("writing ek.pub: %v", err)
+	}
+
 	b := &pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}
+
+	if err := os.WriteFile("ek.pub.pem", pem.EncodeToMemory(b), 0644); err != nil {
+		log.Fatalf("writing ek.pub.pem")
+	}
+
 	pem.Encode(os.Stdout, b)
 }
 
