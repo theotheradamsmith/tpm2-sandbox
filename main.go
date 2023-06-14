@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/sha256"
 	"crypto/x509"
@@ -17,6 +18,24 @@ import (
 )
 
 const pathTPM string = "/dev/tpmrm0"
+
+func storePublicKey(prefix string, pub crypto.PublicKey) (*pem.Block, error) {
+	pubDER, err := x509.MarshalPKIXPublicKey(pub)
+	if err != nil {
+		log.Fatalf("encoding public key: %v", err)
+	}
+
+	if err := ioutil.WriteFile(prefix+".pub", pubDER, 0644); err != nil {
+		log.Fatalf("writing "+prefix+".pub: %v", err)
+	}
+
+	b := &pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}
+
+	if err := os.WriteFile(prefix+".pub.pem", pem.EncodeToMemory(b), 0644); err != nil {
+		log.Fatalf("writing " + prefix + ".pub.pem")
+	}
+
+}
 
 func generateEK() {
 	fmt.Println("Generating EK...")
@@ -72,19 +91,9 @@ func generateEK() {
 	}
 
 	// Store EK public key
-	pubDER, err := x509.MarshalPKIXPublicKey(pub)
+	b, err := storePublicKey("ek", pub)
 	if err != nil {
-		log.Fatalf("encoding public key: %v", err)
-	}
-
-	if err := ioutil.WriteFile("ek.pub", pubDER, 0644); err != nil {
-		log.Fatalf("writing ek.pub: %v", err)
-	}
-
-	b := &pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}
-
-	if err := os.WriteFile("ek.pub.pem", pem.EncodeToMemory(b), 0644); err != nil {
-		log.Fatalf("writing ek.pub.pem")
+		log.Fatalf("Unable to store EK public key")
 	}
 
 	pem.Encode(os.Stdout, b)
