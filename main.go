@@ -124,8 +124,18 @@ func storePublicKey(prefix string, pub crypto.PublicKey) (*pem.Block, error) {
 	return b, nil
 }
 
-func generateEK(f io.ReadWriteCloser) error {
+func generateEK() error {
 	fmt.Println("Generating EK...")
+	f, err := tpm2.OpenTPM(pathTPM)
+	if err != nil {
+		log.Fatalf("opening tpm: %v", err)
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.Fatalf("closing tpm: %v", err)
+		}
+	}()
+
 	ek, pub, err := tpm2.CreatePrimary(f, tpm2.HandleEndorsement, tpm2.PCRSelection{}, "", "", defaultEKTemplate)
 	if err != nil {
 		log.Println("creating EK")
@@ -153,8 +163,18 @@ func generateEK(f io.ReadWriteCloser) error {
 	return pem.Encode(os.Stdout, b)
 }
 
-func generateSRK(f io.ReadWriteCloser) error {
+func generateSRK() error {
 	fmt.Println("Generating SRK...")
+	f, err := tpm2.OpenTPM(pathTPM)
+	if err != nil {
+		log.Fatalf("opening tpm: %v", err)
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.Fatalf("closing tpm: %v", err)
+		}
+	}()
+
 	srk, pub, err := tpm2.CreatePrimary(f, tpm2.HandleOwner, tpm2.PCRSelection{}, "", "", defaultSRKTemplate)
 	if err != nil {
 		log.Println("creating SRK")
@@ -191,6 +211,15 @@ func activateCredential() {
 func generateAK(f io.ReadWriteCloser) error {
 	// First, generate AK
 	fmt.Println("Generating AK...")
+	f, err := tpm2.OpenTPM(pathTPM)
+	if err != nil {
+		log.Fatalf("opening tpm: %v", err)
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.Fatalf("closing tpm: %v", err)
+		}
+	}()
 
 	// Load SRK context because SRK is parent of AK
 	srkCtx, err := ioutil.ReadFile("srk.ctx")
@@ -345,6 +374,16 @@ func generateAK(f io.ReadWriteCloser) error {
 
 func generateAppK(f io.ReadWriteCloser) {
 	fmt.Println("Generating Application Key...")
+	f, err := tpm2.OpenTPM(pathTPM)
+	if err != nil {
+		log.Fatalf("opening tpm: %v", err)
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.Fatalf("closing tpm: %v", err)
+		}
+	}()
+
 	srkCtx, err := ioutil.ReadFile("srk.ctx")
 	if err != nil {
 		log.Fatalf("read srk: %v", err)
@@ -529,26 +568,16 @@ func main() {
 	*/
 
 	// Open the TPM
-	f, err := tpm2.OpenTPM(pathTPM)
-	if err != nil {
-		log.Fatalf("opening tpm: %v", err)
-	}
-	defer func() {
-		if err := f.Close(); err != nil {
-			log.Fatalf("closing tpm: %v", err)
-		}
-	}()
-
-	if err := generateEK(f); err != nil {
+	if err := generateEK(); err != nil {
 		log.Fatalf("Error generating EK: %v", err)
 	}
-	if err := generateSRK(f); err != nil {
+	if err := generateSRK(); err != nil {
 		log.Fatalf("Error generating SRK: %v", err)
 	}
-	if err := generateAK(f); err != nil {
+	if err := generateAK(); err != nil {
 		log.Fatalf("Error generating AK: %v", err)
 	}
-	generateAppK(f)
+	generateAppK()
 
 	//credentialActivation()
 	//caVerifyAppK()
