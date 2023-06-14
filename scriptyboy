@@ -158,8 +158,8 @@ app:create_appk() {
         -t appk.creation.ticket \
         -d appk.creation.dig \
         --creation-data appk.creation.dat \
-        --format=pem \
-        --output=appk.pub.pem
+        --format=tpmt \
+        --output=appk.pub.tpmt
     tpm2_load \
         -C srk.handle \
         -u appk.pub \
