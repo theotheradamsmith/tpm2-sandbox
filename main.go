@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -99,148 +100,135 @@ var (
 	}
 )
 
+//credentialActivation() error
+
 func storePublicKey(prefix string, pub crypto.PublicKey) (*pem.Block, error) {
 	pubDER, err := x509.MarshalPKIXPublicKey(pub)
 	if err != nil {
-		log.Printf("encoding public key: %v\n", err)
+		log.Println("encoding public key")
 		return nil, err
 	}
 
 	if err := ioutil.WriteFile(prefix+".pub", pubDER, 0644); err != nil {
-		log.Printf("writing "+prefix+".pub: %v\n", err)
+		log.Println("writing " + prefix + ".pub")
 		return nil, err
 	}
 
 	b := &pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}
 
 	if err := os.WriteFile(prefix+".pub.pem", pem.EncodeToMemory(b), 0644); err != nil {
-		log.Printf("writing "+prefix+".pub.pem: %v\n", err)
+		log.Println("writing " + prefix + ".pub.pem")
 		return nil, err
 	}
 
 	return b, nil
 }
 
-func generateEK() {
+func generateEK(f io.ReadWriteCloser) error {
 	fmt.Println("Generating EK...")
-
-	// Open the TPM
-	f, err := os.OpenFile(pathTPM, os.O_RDWR, 0)
-	if err != nil {
-		log.Fatalf("opening tpm: %v", err)
-	}
-	defer f.Close()
-
-	// Create EK
 	ek, pub, err := tpm2.CreatePrimary(f, tpm2.HandleEndorsement, tpm2.PCRSelection{}, "", "", defaultEKTemplate)
 	if err != nil {
-		log.Fatalf("creating ek: %v", err)
+		log.Println("creating EK")
+		return err
 	}
 
 	// Save EK context
 	out, err := tpm2.ContextSave(f, ek)
 	if err != nil {
-		log.Fatalf("saving context: %v", err)
+		log.Println("saving context")
+		return err
 	}
 	if err := ioutil.WriteFile("ek.ctx", out, 0644); err != nil {
-		log.Fatalf("writing context: %v", err)
+		log.Println("writing context")
+		return err
 	}
 
 	// Store EK public key
 	b, err := storePublicKey("ek", pub)
 	if err != nil {
-		log.Fatalf("Unable to store EK public key")
+		log.Println("Unable to store EK public key")
+		return err
 	}
 
-	pem.Encode(os.Stdout, b)
+	return pem.Encode(os.Stdout, b)
 }
 
-func generateSRK() {
+func generateSRK(f io.ReadWriteCloser) error {
 	fmt.Println("Generating SRK...")
-	f, err := tpm2.OpenTPM(pathTPM)
-	if err != nil {
-		log.Fatalf("opening tpm: %v", err)
-	}
-	defer func() {
-		if err := f.Close(); err != nil {
-			log.Fatalf("closing tpm: %v", err)
-		}
-	}()
-
 	srk, pub, err := tpm2.CreatePrimary(f, tpm2.HandleOwner, tpm2.PCRSelection{}, "", "", defaultSRKTemplate)
 	if err != nil {
-		log.Fatalf("creating srk: %v", err)
+		log.Println("creating SRK")
+		return err
 	}
 
 	// Save SRK context
 	out, err := tpm2.ContextSave(f, srk)
 	if err != nil {
-		log.Fatalf("saving context: %v", err)
+		log.Println("saving context")
+		return err
 	}
 	if err := ioutil.WriteFile("srk.ctx", out, 0644); err != nil {
-		log.Fatalf("writing context: %v", err)
+		log.Println("writing context")
+		return err
 	}
 
 	// Store SRK public key
 	b, err := storePublicKey("srk", pub)
 	if err != nil {
-		log.Fatalf("Unable to store SRK public key")
+		log.Println("Unable to store SRK public key")
+		return err
 	}
-	pem.Encode(os.Stdout, b)
+
+	return pem.Encode(os.Stdout, b)
 }
 
-func generateAK() {
+func caChallenge() {
+}
+
+func activateCredential() {
+}
+
+func generateAK(f io.ReadWriteCloser) error {
 	// First, generate AK
 	fmt.Println("Generating AK...")
-	f, err := tpm2.OpenTPM(pathTPM)
-	if err != nil {
-		log.Fatalf("opening tpm: %v", err)
-	}
-	defer func() {
-		if err := f.Close(); err != nil {
-			log.Fatalf("closing tpm: %v", err)
-		}
-	}()
 
+	// Load SRK context because SRK is parent of AK
 	srkCtx, err := ioutil.ReadFile("srk.ctx")
 	if err != nil {
-		log.Fatalf("read srk: %v", err)
+		log.Println("Failed to read srk.ctx")
+		return err
 	}
 	srk, err := tpm2.ContextLoad(f, srkCtx)
 	if err != nil {
-		log.Fatalf("load srk: %v", err)
+		log.Println("Failed to load SRK")
+		return err
 	}
 
-	ekCtx, err := ioutil.ReadFile("ek.ctx")
+	privBlob, pubBlob, _, _, _, err := tpm2.CreateKey(f, srk, tpm2.PCRSelection{}, "", "", defaultAKTemplate)
 	if err != nil {
-		log.Fatalf("read ek: %v", err)
+		log.Println("Failed to create AK")
+		return err
 	}
-	ek, err := tpm2.ContextLoad(f, ekCtx)
+	ak, nameData, err := tpm2.Load(f, srk, "", pubBlob, privBlob)
 	if err != nil {
-		log.Fatalf("load ek: %v", err)
+		log.Println("Failed to load AK")
+		return err
+	}
+
+	akCtx, err := tpm2.ContextSave(f, ak)
+	if err != nil {
+		log.Println("Failed to save AK ctx")
+		return err
+	}
+	if err := ioutil.WriteFile("ak.ctx", akCtx, 0644); err != nil {
+		log.Println("Failed to write AK ctx")
+		return err
 	}
 
 	// After creating the AK, we'll need to pass a few values back to the CA:
 	//   1) The EK public key to encrypt the challenge to
 	//   2) The AK public key blob, which includes content such as the key attributes
 	//   3) The AK name, which is a hash of the public key blob
-
-	privBlob, pubBlob, _, _, _, err := tpm2.CreateKey(f, srk, tpm2.PCRSelection{}, "", "", defaultAKTemplate)
-	if err != nil {
-		log.Fatalf("create ak: %v", err)
-	}
-	ak, nameData, err := tpm2.Load(f, srk, "", pubBlob, privBlob)
-	if err != nil {
-		log.Fatalf("load ak: %v", err)
-	}
-
-	akCtx, err := tpm2.ContextSave(f, ak)
-	if err != nil {
-		log.Fatalf("saving ak ctx: %v", err)
-	}
-	if err := ioutil.WriteFile("ak.ctx", akCtx, 0644); err != nil {
-		log.Fatalf("writing ak ctx: %v", err)
-	}
 
 	// Store AK public key
 	akTPMPub, _, _, err := tpm2.ReadPublic(f, ak)
@@ -258,6 +246,15 @@ func generateAK() {
 	pem.Encode(os.Stdout, b)
 
 	// Get the EK public key
+	ekCtx, err := ioutil.ReadFile("ek.ctx")
+	if err != nil {
+		log.Fatalf("read ek: %v", err)
+	}
+	ek, err := tpm2.ContextLoad(f, ekCtx)
+	if err != nil {
+		log.Fatalf("load ek: %v", err)
+	}
+
 	ekTPMPub, _, _, err := tpm2.ReadPublic(f, ek)
 	if err != nil {
 		log.Fatalf("read ek public: %v", err)
@@ -304,7 +301,7 @@ func generateAK() {
 	// Generate a challenge for the name.
 	//
 	// Note that some TPMs enforce a maximum secret size of 32 bytes
-	secret := []byte("Brevity is the soul of wit")
+	secret := []byte("Check out my super secret, secure passphrase that should totally be a nonce")
 	symBlockSize := 16
 	credBlob, encSecret, err := credactivation.Generate(name.Digest, ekPub, symBlockSize, secret)
 	if err != nil {
@@ -343,20 +340,11 @@ func generateAK() {
 		log.Fatalf("activate credential: %v", err)
 	}
 	fmt.Printf("%s\n", out)
+	return nil
 }
 
-func generateAppK() {
+func generateAppK(f io.ReadWriteCloser) {
 	fmt.Println("Generating Application Key...")
-	f, err := tpm2.OpenTPM(pathTPM)
-	if err != nil {
-		log.Fatalf("opening tpm: %v", err)
-	}
-	defer func() {
-		if err := f.Close(); err != nil {
-			log.Fatalf("closing tpm: %v", err)
-		}
-	}()
-
 	srkCtx, err := ioutil.ReadFile("srk.ctx")
 	if err != nil {
 		log.Fatalf("read srk: %v", err)
@@ -480,61 +468,88 @@ func getAttestedCreationNameDigest(attestData []byte) (tpmutil.U16Bytes, error) 
 }
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("This is the arguments version of this nonsense")
-		return
-	}
-
-	attestation := os.Args[1]
-	pub := os.Args[2]
-	if attestation != "99" {
-		attestData, err := ioutil.ReadFile(attestation)
-		if err != nil {
-			fmt.Printf("Error reading file: %v\n", err)
+	/*
+		if len(os.Args) < 2 {
+			fmt.Println("This is the arguments version of this nonsense")
 			return
 		}
-		pubBlob, err := ioutil.ReadFile(pub)
-		if err != nil {
-			fmt.Printf("Error reading file: %v\n", err)
-			return
-		}
-		fmt.Printf("Contents of pubBlob: %x\n", pubBlob)
-		tpmPub, err := tpm2.DecodePublic(pubBlob)
-		if err != nil {
-			log.Fatalf("decode public blob: %v", err)
-		}
-		pub, err := tpmPub.Key()
-		if err != nil {
-			log.Fatalf("decode public key: %v", err)
-		}
-		pubDER, err := x509.MarshalPKIXPublicKey(pub)
-		if err != nil {
-			log.Fatalf("encoding public key: %v", err)
-		}
-		b := &pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}
-		fmt.Printf("Key attributes: 0x%08x\n", tpmPub.Attributes)
-		pem.Encode(os.Stdout, b)
 
-		attestedNameDigest, err := getAttestedCreationNameDigest(attestData)
-		if err != nil {
-			fmt.Printf("Error parsing attestation: %v\n", err)
-		}
+		attestation := os.Args[1]
+		pub := os.Args[2]
+		if attestation != "99" {
+			attestData, err := ioutil.ReadFile(attestation)
+			if err != nil {
+				fmt.Printf("Error reading file: %v\n", err)
+				return
+			}
+			pubBlob, err := ioutil.ReadFile(pub)
+			if err != nil {
+				fmt.Printf("Error reading file: %v\n", err)
+				return
+			}
+			fmt.Printf("Contents of pubBlob: %x\n", pubBlob)
+			tpmPub, err := tpm2.DecodePublic(pubBlob)
+			if err != nil {
+				log.Fatalf("decode public blob: %v", err)
+			}
+			pub, err := tpmPub.Key()
+			if err != nil {
+				log.Fatalf("decode public key: %v", err)
+			}
+			pubDER, err := x509.MarshalPKIXPublicKey(pub)
+			if err != nil {
+				log.Fatalf("encoding public key: %v", err)
+			}
+			b := &pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}
+			fmt.Printf("Key attributes: 0x%08x\n", tpmPub.Attributes)
+			pem.Encode(os.Stdout, b)
 
-		pubDigest := sha256.Sum256(pubBlob)
-		if !bytes.Equal(attestedNameDigest, pubDigest[:]) {
-			fmt.Printf("\n\nAttested Name: %v\n", attestedNameDigest)
-			fmt.Printf("PubDigest Val: %v\n\n", pubDigest[:])
-			log.Fatalf("attestation was not for public blob")
+			attestedNameDigest, err := getAttestedCreationNameDigest(attestData)
+			if err != nil {
+				fmt.Printf("Error parsing attestation: %v\n", err)
+			}
+
+			pubDigest := sha256.Sum256(pubBlob)
+			if !bytes.Equal(attestedNameDigest, pubDigest[:]) {
+				fmt.Printf("\n\nAttested Name: %v\n", attestedNameDigest)
+				fmt.Printf("PubDigest Val: %v\n\n", pubDigest[:])
+				log.Fatalf("attestation was not for public blob")
+			} else {
+				fmt.Println("Attestation was valid")
+			}
 		} else {
-			fmt.Println("Attestation was valid")
-		}
-	} else {
-		ret := 0
+			ret := 0
 
-		generateEK()
-		generateSRK()
-		generateAK()
-		generateAppK()
-		os.Exit(ret)
+			generateEK()
+			generateSRK()
+			generateAK()
+			generateAppK()
+			os.Exit(ret)
+		}
+	*/
+
+	// Open the TPM
+	f, err := tpm2.OpenTPM(pathTPM)
+	if err != nil {
+		log.Fatalf("opening tpm: %v", err)
 	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.Fatalf("closing tpm: %v", err)
+		}
+	}()
+
+	if err := generateEK(f); err != nil {
+		log.Fatalf("Error generating EK: %v", err)
+	}
+	if err := generateSRK(f); err != nil {
+		log.Fatalf("Error generating SRK: %v", err)
+	}
+	if err := generateAK(f); err != nil {
+		log.Fatalf("Error generating AK: %v", err)
+	}
+	generateAppK(f)
+
+	//credentialActivation()
+	//caVerifyAppK()
 }
