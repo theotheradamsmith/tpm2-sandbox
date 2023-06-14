@@ -8,7 +8,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -208,7 +207,7 @@ func caChallenge() {
 func activateCredential() {
 }
 
-func generateAK(f io.ReadWriteCloser) error {
+func generateAK() error {
 	// First, generate AK
 	fmt.Println("Generating AK...")
 	f, err := tpm2.OpenTPM(pathTPM)
@@ -372,7 +371,7 @@ func generateAK(f io.ReadWriteCloser) error {
 	return nil
 }
 
-func generateAppK(f io.ReadWriteCloser) {
+func generateAppK() {
 	fmt.Println("Generating Application Key...")
 	f, err := tpm2.OpenTPM(pathTPM)
 	if err != nil {
