@@ -329,7 +329,7 @@ func generateAK() error {
 	// Generate a challenge for the name.
 	//
 	// Note that some TPMs enforce a maximum secret size of 32 bytes
-	secret := []byte("Check out my secret passphrase")
+	secret := []byte("Brevity is the soul of wit")
 	symBlockSize := 16
 	credBlob, encSecret, err := credactivation.Generate(name.Digest, ekPub, symBlockSize, secret)
 	if err != nil {
