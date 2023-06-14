@@ -234,13 +234,6 @@ func generateAK() {
 		log.Fatalf("load ak: %v", err)
 	}
 
-	// Store AK public key
-	b, err := storePublicKey("ak", pubBlob)
-	if err != nil {
-		log.Fatalf("Unable to store SRK public key")
-	}
-	pem.Encode(os.Stdout, b)
-
 	akCtx, err := tpm2.ContextSave(f, ak)
 	if err != nil {
 		log.Fatalf("saving ak ctx: %v", err)
@@ -249,6 +242,22 @@ func generateAK() {
 		log.Fatalf("writing ak ctx: %v", err)
 	}
 
+	// Store AK public key
+	akTPMPub, _, _, err := tpm2.ReadPublic(f, ak)
+	if err != nil {
+		log.Fatalf("read ak public: %v", err)
+	}
+	akPub, err := akTPMPub.Key()
+	if err != nil {
+		log.Fatalf("decode ak public key: %v", err)
+	}
+	b, err := storePublicKey("ak", akPub)
+	if err != nil {
+		log.Fatalf("Unable to store SRK public key")
+	}
+	pem.Encode(os.Stdout, b)
+
+	// Get the EK public key
 	ekTPMPub, _, _, err := tpm2.ReadPublic(f, ek)
 	if err != nil {
 		log.Fatalf("read ek public: %v", err)
