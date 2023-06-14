@@ -22,19 +22,23 @@ const pathTPM string = "/dev/tpmrm0"
 func storePublicKey(prefix string, pub crypto.PublicKey) (*pem.Block, error) {
 	pubDER, err := x509.MarshalPKIXPublicKey(pub)
 	if err != nil {
-		log.Fatalf("encoding public key: %v", err)
+		log.Printf("encoding public key: %v\n", err)
+		return nil, err
 	}
 
 	if err := ioutil.WriteFile(prefix+".pub", pubDER, 0644); err != nil {
-		log.Fatalf("writing "+prefix+".pub: %v", err)
+		log.Printf("writing "+prefix+".pub: %v\n", err)
+		return nil, err
 	}
 
 	b := &pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}
 
 	if err := os.WriteFile(prefix+".pub.pem", pem.EncodeToMemory(b), 0644); err != nil {
-		log.Fatalf("writing " + prefix + ".pub.pem")
+		log.Printf("writing "+prefix+".pub.pem: %v\n", err)
+		return nil, err
 	}
 
+	return b, nil
 }
 
 func generateEK() {
