@@ -411,10 +411,18 @@ func generateAK() error {
 	//   3) The AK name, which is a hash of the public key blob
 
 	// Store AK public key
-	akTPMPub, _, _, err := tpm2.ReadPublic(f, ak)
+	/*
+		akTPMPub, _, _, err := tpm2.ReadPublic(f, ak)
+		if err != nil {
+			log.Fatalf("read ak public: %v", err)
+		}
+	*/
+	akTPMPub, err := tpm2.DecodePublic(pubBlob)
 	if err != nil {
-		log.Fatalf("read ak public: %v", err)
+		log.Println("FAILED TEST PUBLIC DECODE")
+		return err
 	}
+
 	akPub, err := akTPMPub.Key()
 	if err != nil {
 		log.Fatalf("decode ak public key: %v", err)
