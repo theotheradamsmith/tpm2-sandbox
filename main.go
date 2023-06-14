@@ -582,80 +582,80 @@ func getAttestedCreationNameDigest(attestData []byte) (tpmutil.U16Bytes, error) 
 }
 
 func main() {
-	/*
-		if len(os.Args) < 2 {
-			fmt.Println("This is the arguments version of this nonsense")
+	if len(os.Args) < 2 {
+		fmt.Println("This is the arguments version of this nonsense")
+		return
+	}
+
+	attestation := os.Args[1]
+	pub := os.Args[2]
+	if attestation != "99" {
+		pubBlob, err := ioutil.ReadFile(pub)
+		if err != nil {
+			fmt.Printf("Error reading file: %v\n", err)
 			return
 		}
-
-		attestation := os.Args[1]
-		pub := os.Args[2]
-		if attestation != "99" {
-			attestData, err := ioutil.ReadFile(attestation)
-			if err != nil {
-				fmt.Printf("Error reading file: %v\n", err)
-				return
-			}
-			pubBlob, err := ioutil.ReadFile(pub)
-			if err != nil {
-				fmt.Printf("Error reading file: %v\n", err)
-				return
-			}
-			fmt.Printf("Contents of pubBlob: %x\n", pubBlob)
-			tpmPub, err := tpm2.DecodePublic(pubBlob)
-			if err != nil {
-				log.Fatalf("decode public blob: %v", err)
-			}
-			pub, err := tpmPub.Key()
-			if err != nil {
-				log.Fatalf("decode public key: %v", err)
-			}
-			pubDER, err := x509.MarshalPKIXPublicKey(pub)
-			if err != nil {
-				log.Fatalf("encoding public key: %v", err)
-			}
-			b := &pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}
-			fmt.Printf("Key attributes: 0x%08x\n", tpmPub.Attributes)
-			pem.Encode(os.Stdout, b)
-
-			attestedNameDigest, err := getAttestedCreationNameDigest(attestData)
-			if err != nil {
-				fmt.Printf("Error parsing attestation: %v\n", err)
-			}
-
-			pubDigest := sha256.Sum256(pubBlob)
-			if !bytes.Equal(attestedNameDigest, pubDigest[:]) {
-				fmt.Printf("\n\nAttested Name: %v\n", attestedNameDigest)
-				fmt.Printf("PubDigest Val: %v\n\n", pubDigest[:])
-				log.Fatalf("attestation was not for public blob")
-			} else {
-				fmt.Println("Attestation was valid")
-			}
-		} else {
-			ret := 0
-
-			generateEK()
-			generateSRK()
-			generateAK()
-			generateAppK()
-			os.Exit(ret)
+		fmt.Printf("Contents of pubBlob: %x\n", pubBlob)
+		tpmPub, err := tpm2.DecodePublic(pubBlob)
+		if err != nil {
+			log.Fatalf("decode public blob: %v", err)
 		}
+		pub, err := tpmPub.Key()
+		if err != nil {
+			log.Fatalf("decode public key: %v", err)
+		}
+		pubDER, err := x509.MarshalPKIXPublicKey(pub)
+		if err != nil {
+			log.Fatalf("encoding public key: %v", err)
+		}
+		b := &pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}
+		fmt.Printf("Key attributes: 0x%08x\n", tpmPub.Attributes)
+		pem.Encode(os.Stdout, b)
+
+		attestData, err := ioutil.ReadFile(attestation)
+		if err != nil {
+			fmt.Printf("Error reading file: %v\n", err)
+			return
+		}
+		attestedNameDigest, err := getAttestedCreationNameDigest(attestData)
+		if err != nil {
+			fmt.Printf("Error parsing attestation: %v\n", err)
+		}
+
+		pubDigest := sha256.Sum256(pubBlob)
+		if !bytes.Equal(attestedNameDigest, pubDigest[:]) {
+			fmt.Printf("\n\nAttested Name: %v\n", attestedNameDigest)
+			fmt.Printf("PubDigest Val: %v\n\n", pubDigest[:])
+			log.Fatalf("attestation was not for public blob")
+		} else {
+			fmt.Println("Attestation was valid")
+		}
+	} else {
+		ret := 0
+
+		generateEK()
+		generateSRK()
+		generateAK()
+		generateAppK()
+		os.Exit(ret)
+	}
+
+	/*
+		// Open the TPM
+		if err := generateEK(); err != nil {
+			log.Fatalf("Error generating EK: %v", err)
+		}
+		if err := generateSRK(); err != nil {
+			log.Fatalf("Error generating SRK: %v", err)
+		}
+		if err := generateAK(); err != nil {
+			log.Fatalf("Error generating AK: %v", err)
+		}
+
+		credentialActivation()
+
+		//generateAppK()
+
+		//caVerifyAppK()
 	*/
-
-	// Open the TPM
-	if err := generateEK(); err != nil {
-		log.Fatalf("Error generating EK: %v", err)
-	}
-	if err := generateSRK(); err != nil {
-		log.Fatalf("Error generating SRK: %v", err)
-	}
-	if err := generateAK(); err != nil {
-		log.Fatalf("Error generating AK: %v", err)
-	}
-
-	credentialActivation()
-
-	//generateAppK()
-
-	//caVerifyAppK()
 }
