@@ -257,12 +257,6 @@ func createAppK() error {
 		return err
 	}
 
-	// Store the AppK creation digest and ticket
-	if err := os.WriteFile("appk.creation.dig", hash, 0644); err != nil {
-		log.Println("Failed to write appk.creation.dig")
-		return err
-	}
-
 	// Store appk.pub and PEM, and print PEM to stdout
 	appkTPMPub, err := tpm2.DecodePublic(pubBlob)
 	if err != nil {
