@@ -365,16 +365,18 @@ func cleanClient() {
 		log.Fatalf("load ak: %v", err)
 	}
 
-	appkCtx, err := os.ReadFile("appk.ctx")
-	if err != nil {
-		log.Fatalf("read ak: %v", err)
-	}
-	appk, err := tpm2.ContextLoad(f, appkCtx)
-	if err != nil {
-		log.Fatalf("load ak: %v", err)
-	}
+	/*
+		appkCtx, err := os.ReadFile("appk.ctx")
+		if err != nil {
+			log.Fatalf("read ak: %v", err)
+		}
+		appk, err := tpm2.ContextLoad(f, appkCtx)
+		if err != nil {
+			log.Fatalf("load ak: %v", err)
+		}
 
-	tpm2.EvictControl(f, "", tpm2.HandleOwner, appk, appk)
+		tpm2.EvictControl(f, "", tpm2.HandleOwner, appk, appk)
+	*/
 	tpm2.EvictControl(f, "", tpm2.HandleOwner, ak, ak)
 	tpm2.EvictControl(f, "", tpm2.HandleOwner, srk, srk)
 }
