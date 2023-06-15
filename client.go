@@ -1,10 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"crypto"
-	"crypto/ecdsa"
-	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -64,11 +61,11 @@ func createEK() error {
 	// Save EK context
 	out, err := tpm2.ContextSave(f, ek)
 	if err != nil {
-		log.Println("saving context")
+		log.Println("Failed to generate EK context")
 		return err
 	}
 	if err := os.WriteFile("ek.ctx", out, 0644); err != nil {
-		log.Println("writing context")
+		log.Println("Failed to save EK context")
 		return err
 	}
 
@@ -102,17 +99,18 @@ func createSRK() error {
 
 	// Persist the Key
 	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, srk, srkHandle); err != nil {
-		log.Fatalf("evict ak: %v", err)
+		log.Println("Failed to make SRK persistent")
+		return err
 	}
 
 	// Save SRK context
 	out, err := tpm2.ContextSave(f, srk)
 	if err != nil {
-		log.Println("saving context")
+		log.Println("Failed to generate SRK context")
 		return err
 	}
 	if err := os.WriteFile("srk.ctx", out, 0644); err != nil {
-		log.Println("writing context")
+		log.Println("Failed to save SRK context")
 		return err
 	}
 
@@ -151,28 +149,33 @@ func createAK() error {
 
 	// Persist the Key
 	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, ak, akHandle); err != nil {
-		log.Fatalf("evict ak: %v", err)
+		log.Println("Failed to make AK persistent")
+		return err
 	}
 
+	// Store AK context
 	akCtx, err := tpm2.ContextSave(f, ak)
 	if err != nil {
-		log.Println("Failed to save AK ctx")
+		log.Println("Failed to generate AK ctx")
 		return err
 	}
 	if err := os.WriteFile("ak.ctx", akCtx, 0644); err != nil {
-		log.Println("Failed to write AK ctx")
+		log.Println("Failed to save AK ctx")
 		return err
 	}
+
 	// Store the AK name, which is a hash of the public key blob
 	if err := os.WriteFile("ak.name", nameData, 0644); err != nil {
 		log.Println("Failed to write ak.name")
 		return err
 	}
+
 	// Store the AK public key blob, which includes content such as the key attributes
 	if err := os.WriteFile("ak.pub.tpmt", pubBlob, 0644); err != nil {
 		log.Println("Failed to write ak.pub.tpmt")
 		return err
 	}
+
 	// Store AK public key
 	akTPMPub, _, _, err := tpm2.ReadPublic(f, ak)
 	if err != nil {
@@ -186,9 +189,7 @@ func createAK() error {
 	if err != nil {
 		log.Fatalf("Unable to store AK public key")
 	}
-	pem.Encode(os.Stdout, b)
-
-	return nil
+	return pem.Encode(os.Stdout, b)
 }
 
 func createAppK() error {
@@ -203,103 +204,85 @@ func createAppK() error {
 		}
 	}()
 
+	// Create and load AppK
 	privBlob, pubBlob, _, hash, ticket, err := tpm2.CreateKey(f, srkHandle, tpm2.PCRSelection{}, "", "", defaultAppKTemplate)
 	if err != nil {
-		log.Fatalf("create appk: %v", err)
+		log.Println("Failed to create AppK")
+		return err
 	}
-	appk, _, err := tpm2.Load(f, srkHandle, "", pubBlob, privBlob)
+	appk, nameData, err := tpm2.Load(f, srkHandle, "", pubBlob, privBlob)
 	if err != nil {
-		log.Fatalf("load app key: %v", err)
+		log.Println("Failed to load AppK")
+		return err
 	}
 
-	// Persist the Key
+	// Persist AppK
 	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, appk, appkHandle); err != nil {
-		log.Fatalf("evict ak: %v", err)
+		log.Println("Failed to make AppK persistent")
+		return err
 	}
 
-	// Write key context to disk
+	// Store AppK context
 	appkCtx, err := tpm2.ContextSave(f, appk)
 	if err != nil {
-		log.Fatalf("saving context: %v", err)
+		log.Fatalf("Failed to generate AppK context: %v", err)
 	}
 	if err := os.WriteFile("appk.ctx", appkCtx, 0644); err != nil {
-		log.Fatalf("writing context: %v", err)
+		log.Fatalf("Failed to save AppK context: %v", err)
+	}
+
+	// Store the AppK name, which is a hash of the public key blob
+	if err := os.WriteFile("appk.name", nameData, 0644); err != nil {
+		log.Println("Failed to write appk.name")
+		return err
+	}
+
+	// Store the AppK public key blob, which includes content such as the key attributes
+	if err := os.WriteFile("appk.pub.tpmt", pubBlob, 0644); err != nil {
+		log.Println("Failed to write appk.pub.tpmt")
+		return err
 	}
 
 	// To certify the new key, call CertifyCreation, passing the AK as the signing object.
 	// This returns an attestation and a signature
 	akTPMPub, _, _, err := tpm2.ReadPublic(f, akHandle)
 	if err != nil {
-		log.Fatalf("read ak pub: %v", err)
+		log.Println("Failed to read AK pub")
+		return err
 	}
 	sigParams := akTPMPub.ECCParameters.Sign
-	akPub, err := akTPMPub.Key()
-	if err != nil {
-		log.Fatalf("getting ak public key: %v", err)
-	}
-
 	attestData, sigData, err := tpm2.CertifyCreation(f, "", appk, akHandle, nil, hash, *sigParams, ticket)
 	if err != nil {
-		log.Fatalf("certify creation: %v", err)
+		log.Println("Failed to certify AppK creation")
+		return err
 	}
 
-	// Instead of a challenge and response dance, the CA simply verifies the signature
-	// using the AK's public key
-	akPubECDSA, ok := akPub.(*ecdsa.PublicKey)
-	if !ok {
-		log.Fatalf("expected ecdsa public key, got: %T", akPub)
+	// Write attestation and signature to disk
+	if err := os.WriteFile("appk.attestation", attestData, 0644); err != nil {
+		log.Println("Failed to write appk.attestation")
+		return err
+	}
+	if err := os.WriteFile("appk.attestation.sig", sigData, 0644); err != nil {
+		log.Println("Failed to write appk.attestation.sig")
+		return err
 	}
 
-	if len(sigData) != 64 {
-		fmt.Printf("expected ecdsa signature len 64: got %d\n", len(sigData))
-	}
-	/*
-		var r, s big.Int
-		r.SetBytes(sigData[:len(sigData)/2])
-		s.SetBytes(sigData[len(sigData)/2:])
-
-		// Verify attested data is signed by the EK public key
-		digest := sha256.Sum256(attestData)
-		if !ecdsa.Verify(akPubECDSA, digest[:], &r, &s) {
-			log.Fatalf("signature didn't match")
-		}
-	*/
-
-	// Verify attested data is signed by the EK public key
-	digest := sha256.Sum256(attestData)
-	if !ecdsa.VerifyASN1(akPubECDSA, digest[:], sigData) {
-		fmt.Println("VerifyASN1: signature didn't match")
-	}
-
-	// At this point the attestation data's signature is correct and can be used to
-	// further verify the application key's public key blob. Unpack the blob to
-	// inspect the attributes of the newly-created key
-
-	// Verify the signed attestation was for this public blob
-	a, err := tpm2.DecodeAttestationData(attestData)
+	// Store appk.pub and PEM and print PEM to stdout
+	appkTPMPub, err := tpm2.DecodePublic(pubBlob)
 	if err != nil {
-		log.Fatalf("decode attestation: %v", err)
+		log.Println("FAILED TEST PUBLIC DECODE")
+		return err
 	}
-	pubDigest := sha256.Sum256(pubBlob)
-	if !bytes.Equal(a.AttestedCertifyInfo.Name.Digest.Value, pubDigest[:]) {
-		log.Fatalf("attestation was not for public blob")
-	}
-
-	// Decode public key and inspect key attributes
-	tpmPub, err := tpm2.DecodePublic(pubBlob)
+	appkPub, err := appkTPMPub.Key()
 	if err != nil {
-		log.Fatalf("decode public blob: %v", err)
+		log.Println("Failed to get AppK public key")
+		return err
 	}
-	pub, err := tpmPub.Key()
+	b, err := storePublicKey("appk", appkPub)
 	if err != nil {
-		log.Fatalf("decode public key: %v", err)
+		log.Println("Unable to store AppK public key")
+		return err
 	}
-	pubDER, err := x509.MarshalPKIXPublicKey(pub)
-	if err != nil {
-		log.Fatalf("encoding public key: %v", err)
-	}
-	b := &pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}
-	fmt.Printf("Key attributres: 0x%08x\n", tpmPub.Attributes)
 	return pem.Encode(os.Stdout, b)
 }
 

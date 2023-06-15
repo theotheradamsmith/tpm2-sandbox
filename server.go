@@ -95,6 +95,68 @@ func caChallenge(nameData []byte, pubBlob []byte) ([]byte, []byte, error) {
 	return credBlob, encSecret, nil
 }
 
+func caVerifyAppK() error {
+	return nil
+	/*
+		// Instead of a challenge and response dance, the CA simply verifies the signature
+		// using the AK's public key
+		akPubECDSA, ok := akPub.(*ecdsa.PublicKey)
+		if !ok {
+			log.Fatalf("expected ecdsa public key, got: %T", akPub)
+		}
+
+		if len(sigData) != 64 {
+			fmt.Printf("expected ecdsa signature len 64: got %d\n", len(sigData))
+		}
+			var r, s big.Int
+			r.SetBytes(sigData[:len(sigData)/2])
+			s.SetBytes(sigData[len(sigData)/2:])
+
+			// Verify attested data is signed by the EK public key
+			digest := sha256.Sum256(attestData)
+			if !ecdsa.Verify(akPubECDSA, digest[:], &r, &s) {
+				log.Fatalf("signature didn't match")
+			}
+
+		// Verify attested data is signed by the EK public key
+		digest := sha256.Sum256(attestData)
+		if !ecdsa.VerifyASN1(akPubECDSA, digest[:], sigData) {
+			fmt.Println("VerifyASN1: signature didn't match")
+		}
+
+		// At this point the attestation data's signature is correct and can be used to
+		// further verify the application key's public key blob. Unpack the blob to
+		// inspect the attributes of the newly-created key
+
+		// Verify the signed attestation was for this public blob
+		a, err := tpm2.DecodeAttestationData(attestData)
+		if err != nil {
+			log.Fatalf("decode attestation: %v", err)
+		}
+		pubDigest := sha256.Sum256(pubBlob)
+		if !bytes.Equal(a.AttestedCertifyInfo.Name.Digest.Value, pubDigest[:]) {
+			log.Fatalf("attestation was not for public blob")
+		}
+
+		// Decode public key and inspect key attributes
+		tpmPub, err := tpm2.DecodePublic(pubBlob)
+		if err != nil {
+			log.Fatalf("decode public blob: %v", err)
+		}
+		pub, err := tpmPub.Key()
+		if err != nil {
+			log.Fatalf("decode public key: %v", err)
+		}
+		pubDER, err := x509.MarshalPKIXPublicKey(pub)
+		if err != nil {
+			log.Fatalf("encoding public key: %v", err)
+		}
+		b := &pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}
+		fmt.Printf("Key attributres: 0x%08x\n", tpmPub.Attributes)
+		return pem.Encode(os.Stdout, b)
+	*/
+}
+
 func activateCredential(credBlob []byte, encSecret []byte) error {
 	/*
 		The EK passes the challenge by returning the decrypted secret to the CA.
