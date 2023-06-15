@@ -8,7 +8,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"log"
-	"math/big"
 	"os"
 	"reflect"
 
@@ -116,17 +115,27 @@ func servVerifyAppK(appkAttestDat []byte, appkAttestSig []byte, akPubBlob []byte
 		log.Fatalf("expected ecdsa public key, got: %T", akPub)
 	}
 
-	if len(appkAttestSig) != 64 {
-		fmt.Printf("expected ecdsa signature len 64: got %d\n", len(appkAttestSig))
+	sig, err := tpm2.DecodeSignature(bytes.NewBuffer(appkAttestSig))
+	if err != nil {
+		log.Println("Unable to decode appk.attestation.sig")
+		return err
 	}
-	var r, s big.Int
-	r.SetBytes(appkAttestSig[:len(appkAttestSig)/2])
-	s.SetBytes(appkAttestSig[len(appkAttestSig)/2:])
+
+	/*
+		if len(appkAttestSig) != 64 {
+			fmt.Printf("expected ecdsa signature len 64: got %d\n", len(appkAttestSig))
+		}
+		var r, s big.Int
+		r.SetBytes(appkAttestSig[:len(appkAttestSig)/2])
+		s.SetBytes(appkAttestSig[len(appkAttestSig)/2:])
+	*/
 
 	// Verify attested data is signed by the EK public key
 	digest := sha256.Sum256(appkAttestDat)
-	if !ecdsa.Verify(akPubECDSA, digest[:], &r, &s) {
+	if !ecdsa.Verify(akPubECDSA, digest[:], sig.ECC.R, sig.ECC.S) {
 		log.Fatalf("signature didn't match")
+	} else {
+		log.Println("WHAT?!?!?!?!")
 	}
 
 	/*
