@@ -139,24 +139,12 @@ func createAK() error {
 		}
 	}()
 
-	// Load SRK context because SRK is parent of AK
-	srkCtx, err := os.ReadFile("srk.ctx")
-	if err != nil {
-		log.Println("Failed to read srk.ctx")
-		return err
-	}
-	srk, err := tpm2.ContextLoad(f, srkCtx)
-	if err != nil {
-		log.Println("Failed to load SRK")
-		return err
-	}
-
-	privBlob, pubBlob, _, _, _, err := tpm2.CreateKey(f, srk, tpm2.PCRSelection{}, "", "", defaultAKTemplate)
+	privBlob, pubBlob, _, _, _, err := tpm2.CreateKey(f, srkHandle, tpm2.PCRSelection{}, "", "", defaultAKTemplate)
 	if err != nil {
 		log.Println("Failed to create AK")
 		return err
 	}
-	ak, nameData, err := tpm2.Load(f, srk, "", pubBlob, privBlob)
+	ak, nameData, err := tpm2.Load(f, srkHandle, "", pubBlob, privBlob)
 	if err != nil {
 		log.Println("Failed to load AK")
 		return err
