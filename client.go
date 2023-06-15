@@ -29,8 +29,8 @@ func certifyAppK(f io.ReadWriteCloser, hash []byte, ticket tpm2.Ticket) error {
 		log.Println("Failed to read AK pub")
 		return err
 	}
-	sigParams := akTPMPub.ECCParameters.Sign
-	attestData, sigData, err := tpm2.CertifyCreation(f, "", appkHandle, akHandle, nil, hash, *sigParams, ticket)
+	sigParams := *akTPMPub.ECCParameters.Sign
+	attestData, sigData, err := tpm2.CertifyCreation(f, "", appkHandle, akHandle, nil, hash, sigParams, ticket)
 	if err != nil {
 		log.Println("Failed to certify AppK creation")
 		return err
