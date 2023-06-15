@@ -148,7 +148,7 @@ func servVerifyAppK(appkAttestDat []byte, appkAttestSig []byte, akPubBlob []byte
 	}
 	log.Printf("Contents of attest dat: %v\n", a)
 	pubDigest := sha256.Sum256(appkPubBlob)
-	if !bytes.Equal(a.AttestedCertifyInfo.Name.Digest.Value, pubDigest[:]) {
+	if !bytes.Equal(a.AttestedCreationInfo.Name.Digest.Value, pubDigest[:]) {
 		log.Fatalf("attestation was not for public blob")
 	}
 
