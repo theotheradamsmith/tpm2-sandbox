@@ -377,6 +377,10 @@ func cleanClient() {
 
 		tpm2.EvictControl(f, "", tpm2.HandleOwner, appk, appk)
 	*/
-	tpm2.EvictControl(f, "", tpm2.HandleOwner, ak, ak)
-	tpm2.EvictControl(f, "", tpm2.HandleOwner, srk, srk)
+	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, ak, ak); err != nil {
+		log.Fatalf("evict ak: %v", err)
+	}
+	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, srk, srk); err != nil {
+		log.Fatalf("evict srk: %v", err)
+	}
 }
