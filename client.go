@@ -364,36 +364,6 @@ func cleanClient() {
 		}
 	}()
 
-	srkCtx, err := os.ReadFile("srk.ctx")
-	if err != nil {
-		log.Fatalf("read srk: %v", err)
-	}
-	srk, err := tpm2.ContextLoad(f, srkCtx)
-	if err != nil {
-		log.Fatalf("load srk: %v", err)
-	}
-
-	akCtx, err := os.ReadFile("ak.ctx")
-	if err != nil {
-		log.Fatalf("read ak: %v", err)
-	}
-	ak, err := tpm2.ContextLoad(f, akCtx)
-	if err != nil {
-		log.Fatalf("load ak: %v", err)
-	}
-
-	/*
-		appkCtx, err := os.ReadFile("appk.ctx")
-		if err != nil {
-			log.Fatalf("read ak: %v", err)
-		}
-		appk, err := tpm2.ContextLoad(f, appkCtx)
-		if err != nil {
-			log.Fatalf("load ak: %v", err)
-		}
-
-		tpm2.EvictControl(f, "", tpm2.HandleOwner, appk, appk)
-	*/
 	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, akHandle, akHandle); err != nil {
 		log.Fatalf("evict ak: %v", err)
 	}
