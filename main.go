@@ -1,16 +1,10 @@
 package main
 
 import (
-	"bytes"
-	"crypto/sha256"
-	"crypto/x509"
-	"encoding/pem"
-	"fmt"
 	"log"
 	"os"
 
 	"github.com/google/go-tpm/tpm2"
-	"github.com/google/go-tpm/tpmutil"
 )
 
 var (
@@ -97,18 +91,20 @@ var (
 
 func clientTest() error {
 	if err := createEK(); err != nil {
-		log.Fatalf("Error generating EK: %v", err)
+		log.Println("Error generating EK")
 		return err
 	}
 	if err := createSRK(); err != nil {
-		log.Fatalf("Error generating SRK: %v", err)
+		log.Println("Error generating SRK")
 		return err
 	}
 	if err := createAK(); err != nil {
-		log.Fatalf("Error generating AK: %v", err)
+		log.Println("Error generating AK")
 		return err
 	}
-	//generateAppK()
+	if err := createAppK(); err != nil {
+		log.Println("Error generating AppK")
+	}
 
 	return nil
 }
@@ -148,62 +144,11 @@ func main() {
 		return
 	} else {
 		if err := clientTest(); err != nil {
+			cleanClient()
 			log.Fatalf("Failure during Client Test: %v", err)
 		}
 		if err := serverTest(); err != nil {
 			log.Fatalf("Failure during Server Test: %v", err)
 		}
-	}
-}
-
-func getAttestedCreationNameDigest(attestData []byte) (tpmutil.U16Bytes, error) {
-	a, err := tpm2.DecodeAttestationData(attestData)
-	if err != nil {
-		return nil, err
-	}
-
-	return a.AttestedCreationInfo.Name.Digest.Value, nil
-}
-
-func attestation_verification_test(p string, a string) {
-	pubBlob, err := os.ReadFile(p)
-	if err != nil {
-		fmt.Printf("Error reading file: %v\n", err)
-		return
-	}
-	fmt.Printf("Contents of pubBlob: %x\n", pubBlob)
-	tpmPub, err := tpm2.DecodePublic(pubBlob)
-	if err != nil {
-		log.Fatalf("decode public blob: %v", err)
-	}
-	pub, err := tpmPub.Key()
-	if err != nil {
-		log.Fatalf("decode public key: %v", err)
-	}
-	pubDER, err := x509.MarshalPKIXPublicKey(pub)
-	if err != nil {
-		log.Fatalf("encoding public key: %v", err)
-	}
-	b := &pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}
-	fmt.Printf("Key attributes: 0x%08x\n", tpmPub.Attributes)
-	pem.Encode(os.Stdout, b)
-
-	attestData, err := os.ReadFile(a)
-	if err != nil {
-		fmt.Printf("Error reading file: %v\n", err)
-		return
-	}
-	attestedNameDigest, err := getAttestedCreationNameDigest(attestData)
-	if err != nil {
-		fmt.Printf("Error parsing attestation: %v\n", err)
-	}
-
-	pubDigest := sha256.Sum256(pubBlob)
-	if !bytes.Equal(attestedNameDigest, pubDigest[:]) {
-		fmt.Printf("\n\nAttested Name: %v\n", attestedNameDigest)
-		fmt.Printf("PubDigest Val: %v\n\n", pubDigest[:])
-		log.Fatalf("attestation was not for public blob")
-	} else {
-		fmt.Println("Attestation was valid")
 	}
 }

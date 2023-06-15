@@ -127,7 +127,6 @@ func createSRK() error {
 }
 
 func createAK() error {
-	// First, generate AK
 	fmt.Println("Generating AK...")
 	f, err := tpm2.OpenTPM(pathTPM)
 	if err != nil {
@@ -164,33 +163,21 @@ func createAK() error {
 		log.Println("Failed to write AK ctx")
 		return err
 	}
+	// Store the AK name, which is a hash of the public key blob
 	if err := os.WriteFile("ak.name", nameData, 0644); err != nil {
 		log.Println("Failed to write ak.name")
 		return err
 	}
-	if err := os.WriteFile("ak.pub.blob", pubBlob, 0644); err != nil {
+	// Store the AK public key blob, which includes content such as the key attributes
+	if err := os.WriteFile("ak.pub.tpmt", pubBlob, 0644); err != nil {
 		log.Println("Failed to write ak.pub.tpmt")
 		return err
 	}
-
-	// After creating the AK, we'll need to pass a few values back to the CA:
-	//   1) The EK public key to encrypt the challenge to
-	//   2) The AK public key blob, which includes content such as the key attributes
-	//   3) The AK name, which is a hash of the public key blob
-
 	// Store AK public key
-	/*
-		akTPMPub, _, _, err := tpm2.ReadPublic(f, ak)
-		if err != nil {
-			log.Fatalf("read ak public: %v", err)
-		}
-	*/
-	akTPMPub, err := tpm2.DecodePublic(pubBlob)
+	akTPMPub, _, _, err := tpm2.ReadPublic(f, ak)
 	if err != nil {
-		log.Println("FAILED TEST PUBLIC DECODE")
-		return err
+		log.Fatalf("read ak public: %v", err)
 	}
-
 	akPub, err := akTPMPub.Key()
 	if err != nil {
 		log.Fatalf("decode ak public key: %v", err)
@@ -201,21 +188,10 @@ func createAK() error {
 	}
 	pem.Encode(os.Stdout, b)
 
-	/*
-		ekTPMPub, _, _, err := tpm2.ReadPublic(f, ek)
-		if err != nil {
-			log.Fatalf("read ek public: %v", err)
-		}
-		ekPub, err := ekTPMPub.Key()
-		if err != nil {
-			log.Fatalf("decode ek public key: %v", err)
-		}
-	*/
-
 	return nil
 }
 
-func createAppK() {
+func createAppK() error {
 	fmt.Println("Generating Application Key...")
 	f, err := tpm2.OpenTPM(pathTPM)
 	if err != nil {
@@ -227,45 +203,32 @@ func createAppK() {
 		}
 	}()
 
-	srkCtx, err := os.ReadFile("srk.ctx")
-	if err != nil {
-		log.Fatalf("read srk: %v", err)
-	}
-	srk, err := tpm2.ContextLoad(f, srkCtx)
-	if err != nil {
-		log.Fatalf("load srk: %v", err)
-	}
-
-	akCtx, err := os.ReadFile("ak.ctx")
-	if err != nil {
-		log.Fatalf("read ak: %v", err)
-	}
-	ak, err := tpm2.ContextLoad(f, akCtx)
-	if err != nil {
-		log.Fatalf("load ak: %v", err)
-	}
-
-	privBlob, pubBlob, _, hash, ticket, err := tpm2.CreateKey(f, srk, tpm2.PCRSelection{}, "", "", defaultAppKTemplate)
+	privBlob, pubBlob, _, hash, ticket, err := tpm2.CreateKey(f, srkHandle, tpm2.PCRSelection{}, "", "", defaultAppKTemplate)
 	if err != nil {
 		log.Fatalf("create appk: %v", err)
 	}
-	appKey, _, err := tpm2.Load(f, srk, "", pubBlob, privBlob)
+	appk, _, err := tpm2.Load(f, srkHandle, "", pubBlob, privBlob)
 	if err != nil {
 		log.Fatalf("load app key: %v", err)
 	}
 
+	// Persist the Key
+	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, appk, appkHandle); err != nil {
+		log.Fatalf("evict ak: %v", err)
+	}
+
 	// Write key context to disk
-	appKeyCtx, err := tpm2.ContextSave(f, appKey)
+	appkCtx, err := tpm2.ContextSave(f, appk)
 	if err != nil {
 		log.Fatalf("saving context: %v", err)
 	}
-	if err := os.WriteFile("app.ctx", appKeyCtx, 0644); err != nil {
+	if err := os.WriteFile("appk.ctx", appkCtx, 0644); err != nil {
 		log.Fatalf("writing context: %v", err)
 	}
 
 	// To certify the new key, call CertifyCreation, passing the AK as the signing object.
 	// This returns an attestation and a signature
-	akTPMPub, _, _, err := tpm2.ReadPublic(f, ak)
+	akTPMPub, _, _, err := tpm2.ReadPublic(f, akHandle)
 	if err != nil {
 		log.Fatalf("read ak pub: %v", err)
 	}
@@ -275,7 +238,7 @@ func createAppK() {
 		log.Fatalf("getting ak public key: %v", err)
 	}
 
-	attestData, sigData, err := tpm2.CertifyCreation(f, "", appKey, ak, nil, hash, *sigParams, ticket)
+	attestData, sigData, err := tpm2.CertifyCreation(f, "", appk, akHandle, nil, hash, *sigParams, ticket)
 	if err != nil {
 		log.Fatalf("certify creation: %v", err)
 	}
@@ -337,7 +300,7 @@ func createAppK() {
 	}
 	b := &pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}
 	fmt.Printf("Key attributres: 0x%08x\n", tpmPub.Attributes)
-	pem.Encode(os.Stdout, b)
+	return pem.Encode(os.Stdout, b)
 }
 
 func cleanClient() {
@@ -352,10 +315,31 @@ func cleanClient() {
 		}
 	}()
 
+	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, appkHandle, appkHandle); err != nil {
+		log.Printf("Unable to evict AppK: %v", err)
+	}
 	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, akHandle, akHandle); err != nil {
-		log.Fatalf("evict ak: %v", err)
+		log.Printf("Unable to evict AK: %v", err)
 	}
 	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, srkHandle, srkHandle); err != nil {
-		log.Fatalf("evict srk: %v", err)
+		log.Printf("Unable to evict SRK: %v", err)
 	}
 }
+
+/*
+	ekTPMPub, _, _, err := tpm2.ReadPublic(f, ek)
+	if err != nil {
+		log.Fatalf("read ek public: %v", err)
+	}
+	ekPub, err := ekTPMPub.Key()
+	if err != nil {
+		log.Fatalf("decode ek public key: %v", err)
+	}
+*/
+/*
+	akTPMPub, err := tpm2.DecodePublic(pubBlob)
+	if err != nil {
+		log.Println("FAILED TEST PUBLIC DECODE")
+		return err
+	}
+*/
