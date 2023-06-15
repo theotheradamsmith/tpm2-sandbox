@@ -100,6 +100,11 @@ func createSRK() error {
 		return err
 	}
 
+	// Persist the Key
+	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, srk, srkHandle); err != nil {
+		log.Fatalf("evict ak: %v", err)
+	}
+
 	// Save SRK context
 	out, err := tpm2.ContextSave(f, srk)
 	if err != nil {
@@ -155,6 +160,11 @@ func createAK() error {
 	if err != nil {
 		log.Println("Failed to load AK")
 		return err
+	}
+
+	// Persist the Key
+	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, ak, akHandle); err != nil {
+		log.Fatalf("evict ak: %v", err)
 	}
 
 	akCtx, err := tpm2.ContextSave(f, ak)
@@ -384,10 +394,10 @@ func cleanClient() {
 
 		tpm2.EvictControl(f, "", tpm2.HandleOwner, appk, appk)
 	*/
-	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, ak, akHandle); err != nil {
+	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, akHandle, akHandle); err != nil {
 		log.Fatalf("evict ak: %v", err)
 	}
-	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, srk, srkHandle); err != nil {
+	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, srkHandle, srkHandle); err != nil {
 		log.Fatalf("evict srk: %v", err)
 	}
 }
