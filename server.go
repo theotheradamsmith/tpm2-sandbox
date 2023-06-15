@@ -2,11 +2,13 @@ package main
 
 import (
 	"bytes"
+	"crypto/ecdsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
 	"log"
+	"math/big"
 	"os"
 	"reflect"
 
@@ -17,18 +19,7 @@ import (
 
 var secret = []byte("Aren't cats just the best?")
 
-func credentialActivation() error {
-	akNameData, err := os.ReadFile("ak.name")
-	if err != nil {
-		log.Println("Unable to open ak.name")
-		return err
-	}
-	akPubBlob, err := os.ReadFile(fileAKPubBlob)
-	if err != nil {
-		log.Println("Unable to open " + fileAKPubBlob)
-		return err
-	}
-
+func credentialActivation(akNameData []byte, akPubBlob []byte) error {
 	credBlob, encSecret, err := servChallenge(akNameData, akPubBlob)
 	if err != nil {
 		log.Println("CA failed to generate challenge")
@@ -108,66 +99,74 @@ func servChallenge(nameData []byte, pubBlob []byte) ([]byte, []byte, error) {
 	return credBlob, encSecret, nil
 }
 
-func servVerifyAppK() error {
-	return nil
+func servVerifyAppK(appkAttestDat []byte, appkAttestSig []byte, akPubBlob []byte, appkPubBlob []byte) error {
+	// Instead of a challenge and response dance, the CA simply verifies the signature
+	// using the AK's public key
+	akTPMPub, err := tpm2.DecodePublic(akPubBlob)
+	if err != nil {
+		log.Println("FAILED TEST PUBLIC DECODE")
+		return err
+	}
+	akPub, err := akTPMPub.Key()
+	if err != nil {
+		log.Println("Unable to retrieve AK public key")
+	}
+	akPubECDSA, ok := akPub.(*ecdsa.PublicKey)
+	if !ok {
+		log.Fatalf("expected ecdsa public key, got: %T", akPub)
+	}
+
+	if len(appkAttestSig) != 64 {
+		fmt.Printf("expected ecdsa signature len 64: got %d\n", len(appkAttestSig))
+	}
+	var r, s big.Int
+	r.SetBytes(appkAttestSig[:len(appkAttestSig)/2])
+	s.SetBytes(appkAttestSig[len(appkAttestSig)/2:])
+
+	// Verify attested data is signed by the EK public key
+	digest := sha256.Sum256(appkAttestDat)
+	if !ecdsa.Verify(akPubECDSA, digest[:], &r, &s) {
+		log.Fatalf("signature didn't match")
+	}
+
 	/*
-		// Instead of a challenge and response dance, the CA simply verifies the signature
-		// using the AK's public key
-		akPubECDSA, ok := akPub.(*ecdsa.PublicKey)
-		if !ok {
-			log.Fatalf("expected ecdsa public key, got: %T", akPub)
-		}
-
-		if len(sigData) != 64 {
-			fmt.Printf("expected ecdsa signature len 64: got %d\n", len(sigData))
-		}
-			var r, s big.Int
-			r.SetBytes(sigData[:len(sigData)/2])
-			s.SetBytes(sigData[len(sigData)/2:])
-
-			// Verify attested data is signed by the EK public key
-			digest := sha256.Sum256(attestData)
-			if !ecdsa.Verify(akPubECDSA, digest[:], &r, &s) {
-				log.Fatalf("signature didn't match")
-			}
-
 		// Verify attested data is signed by the EK public key
-		digest := sha256.Sum256(attestData)
-		if !ecdsa.VerifyASN1(akPubECDSA, digest[:], sigData) {
+		digest := sha256.Sum256(appkAttestDat)
+		if !ecdsa.VerifyASN1(akPubECDSA, digest[:], appkAttestSig) {
 			fmt.Println("VerifyASN1: signature didn't match")
 		}
-
-		// At this point the attestation data's signature is correct and can be used to
-		// further verify the application key's public key blob. Unpack the blob to
-		// inspect the attributes of the newly-created key
-
-		// Verify the signed attestation was for this public blob
-		a, err := tpm2.DecodeAttestationData(attestData)
-		if err != nil {
-			log.Fatalf("decode attestation: %v", err)
-		}
-		pubDigest := sha256.Sum256(pubBlob)
-		if !bytes.Equal(a.AttestedCertifyInfo.Name.Digest.Value, pubDigest[:]) {
-			log.Fatalf("attestation was not for public blob")
-		}
-
-		// Decode public key and inspect key attributes
-		tpmPub, err := tpm2.DecodePublic(pubBlob)
-		if err != nil {
-			log.Fatalf("decode public blob: %v", err)
-		}
-		pub, err := tpmPub.Key()
-		if err != nil {
-			log.Fatalf("decode public key: %v", err)
-		}
-		pubDER, err := x509.MarshalPKIXPublicKey(pub)
-		if err != nil {
-			log.Fatalf("encoding public key: %v", err)
-		}
-		b := &pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}
-		fmt.Printf("Key attributres: 0x%08x\n", tpmPub.Attributes)
-		return pem.Encode(os.Stdout, b)
 	*/
+
+	// At this point the attestation data's signature is correct and can be used to
+	// further verify the application key's public key blob. Unpack the blob to
+	// inspect the attributes of the newly-created key
+
+	// Verify the signed attestation was for this public blob
+	a, err := tpm2.DecodeAttestationData(appkAttestDat)
+	if err != nil {
+		log.Fatalf("decode attestation: %v", err)
+	}
+	pubDigest := sha256.Sum256(appkPubBlob)
+	if !bytes.Equal(a.AttestedCertifyInfo.Name.Digest.Value, pubDigest[:]) {
+		log.Fatalf("attestation was not for public blob")
+	}
+
+	// Decode public key and inspect key attributes
+	tpmPub, err := tpm2.DecodePublic(appkPubBlob)
+	if err != nil {
+		log.Fatalf("decode public blob: %v", err)
+	}
+	pub, err := tpmPub.Key()
+	if err != nil {
+		log.Fatalf("decode public key: %v", err)
+	}
+	pubDER, err := x509.MarshalPKIXPublicKey(pub)
+	if err != nil {
+		log.Fatalf("encoding public key: %v", err)
+	}
+	b := &pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}
+	fmt.Printf("Key attributres: 0x%08x\n", tpmPub.Attributes)
+	return pem.Encode(os.Stdout, b)
 }
 
 func getAttestedCreationNameDigest(attestData []byte) (tpmutil.U16Bytes, error) {

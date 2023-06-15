@@ -37,11 +37,11 @@ func certifyAppK(f io.ReadWriteCloser, hash []byte, ticket tpm2.Ticket) error {
 	}
 
 	// Write attestation and signature to disk
-	if err := os.WriteFile("appk.attestation", attestData, 0644); err != nil {
+	if err := os.WriteFile(fileAppKAttestDat, attestData, 0644); err != nil {
 		log.Println("Failed to write appk.attestation")
 		return err
 	}
-	if err := os.WriteFile("appk.attestation.sig", sigData, 0644); err != nil {
+	if err := os.WriteFile(fileAppKAttestSig, sigData, 0644); err != nil {
 		log.Println("Failed to write appk.attestation.sig")
 		return err
 	}

@@ -8,8 +8,10 @@ import (
 )
 
 const (
-	fileAKPubBlob   = "ak.pub.tpmt"
-	fileAppKPubBlob = "appk.pub.tpmt"
+	fileAKPubBlob     = "ak.pub.tpmt"
+	fileAppKPubBlob   = "appk.pub.tpmt"
+	fileAppKAttestSig = "appk.attestation.sig"
+	fileAppKAttestDat = "appk.attestation.dat"
 )
 
 var (
@@ -114,11 +116,40 @@ func clientTest() error {
 }
 
 func serverTest() error {
-	if err := credentialActivation(); err != nil {
+	akNameData, err := os.ReadFile("ak.name")
+	if err != nil {
+		log.Println("Unable to open ak.name")
+		return err
+	}
+	akPubBlob, err := os.ReadFile(fileAKPubBlob)
+	if err != nil {
+		log.Println("Unable to open " + fileAKPubBlob)
+		return err
+	}
+	appkAttestDat, err := os.ReadFile(fileAppKAttestDat)
+	if err != nil {
+		log.Println("Unable to load " + fileAppKAttestDat)
+		return err
+	}
+	appkAttestSig, err := os.ReadFile(fileAppKAttestSig)
+	if err != nil {
+		log.Println("Unable to load " + fileAppKAttestSig)
+		return err
+	}
+	appkPubBlob, err := os.ReadFile(fileAppKPubBlob)
+	if err != nil {
+		log.Println("Unable to load " + fileAppKPubBlob)
+		return err
+	}
+
+	if err := credentialActivation(akNameData, akPubBlob); err != nil {
 		log.Println("Unable to perform Credential Activation.")
 		return err
 	}
-	//caVerifyAppK()
+	if err := servVerifyAppK(appkAttestDat, appkAttestSig, akPubBlob, appkPubBlob); err != nil {
+		log.Println("Unable to verify AppK")
+		return err
+	}
 
 	return nil
 }
