@@ -14,6 +14,13 @@ import (
 	"github.com/google/go-tpm/tpm2"
 )
 
+const (
+	// Defined in "Registry of reserved TPM 2.0 handles and localities", and checked on a glinux machine.
+	srkHandle  = 0x81000001
+	akHandle   = 0x81000002
+	appkHandle = 0x81000003
+)
+
 func storePublicKey(prefix string, pub crypto.PublicKey) (*pem.Block, error) {
 	pubDER, err := x509.MarshalPKIXPublicKey(pub)
 	if err != nil {
@@ -377,10 +384,10 @@ func cleanClient() {
 
 		tpm2.EvictControl(f, "", tpm2.HandleOwner, appk, appk)
 	*/
-	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, ak, ak); err != nil {
+	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, ak, akHandle); err != nil {
 		log.Fatalf("evict ak: %v", err)
 	}
-	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, srk, srk); err != nil {
+	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, srk, srkHandle); err != nil {
 		log.Fatalf("evict srk: %v", err)
 	}
 }
