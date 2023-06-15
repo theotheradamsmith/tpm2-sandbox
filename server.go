@@ -121,12 +121,12 @@ func servVerifyAppK(appkAttestDat []byte, appkAttestSig []byte, akPubBlob []byte
 		return err
 	}
 
-	// Verify attested data is signed by the EK public key
+	// Verify attested data is signed by the AK public key
 	digest := sha256.Sum256(appkAttestDat)
 	if !ecdsa.Verify(akPubECDSA, digest[:], sig.ECC.R, sig.ECC.S) {
 		log.Fatalf("signature didn't match")
 	} else {
-		log.Println("WE HAVE A MATCH WHAT?!?!?!")
+		log.Println("Attested data is signed by the AK public Key")
 	}
 
 	/*
@@ -146,10 +146,11 @@ func servVerifyAppK(appkAttestDat []byte, appkAttestSig []byte, akPubBlob []byte
 	if err != nil {
 		log.Fatalf("decode attestation: %v", err)
 	}
-	log.Printf("Contents of attest dat: %v\n", a)
 	pubDigest := sha256.Sum256(appkPubBlob)
 	if !bytes.Equal(a.AttestedCreationInfo.Name.Digest.Value, pubDigest[:]) {
-		log.Fatalf("attestation was not for public blob")
+		log.Fatalf("Attestation was not for public blob")
+	} else {
+		log.Println("Attestation was for AppK.pub")
 	}
 
 	// Decode public key and inspect key attributes
