@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"log"
 	"os"
 
@@ -19,6 +20,57 @@ const (
 
 	pathTPM = "/dev/tpmrm0"
 )
+
+func certifyAppK(f io.ReadWriteCloser, hash []byte, ticket tpm2.Ticket) error {
+	// To certify the new key, call CertifyCreation, passing the AK as the signing object.
+	// This returns an attestation and a signature
+	akTPMPub, _, _, err := tpm2.ReadPublic(f, akHandle)
+	if err != nil {
+		log.Println("Failed to read AK pub")
+		return err
+	}
+	sigParams := akTPMPub.ECCParameters.Sign
+	attestData, sigData, err := tpm2.CertifyCreation(f, "", appkHandle, akHandle, nil, hash, *sigParams, ticket)
+	if err != nil {
+		log.Println("Failed to certify AppK creation")
+		return err
+	}
+
+	// Write attestation and signature to disk
+	if err := os.WriteFile("appk.attestation", attestData, 0644); err != nil {
+		log.Println("Failed to write appk.attestation")
+		return err
+	}
+	if err := os.WriteFile("appk.attestation.sig", sigData, 0644); err != nil {
+		log.Println("Failed to write appk.attestation.sig")
+		return err
+	}
+
+	return nil
+}
+
+func cleanClient() {
+	// Cleaning persistent handles
+	f, err := tpm2.OpenTPM(pathTPM)
+	if err != nil {
+		log.Fatalf("opening tpm: %v", err)
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.Fatalf("closing tpm: %v", err)
+		}
+	}()
+
+	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, appkHandle, appkHandle); err != nil {
+		log.Printf("Unable to evict AppK: %v", err)
+	}
+	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, akHandle, akHandle); err != nil {
+		log.Printf("Unable to evict AK: %v", err)
+	}
+	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, srkHandle, srkHandle); err != nil {
+		log.Printf("Unable to evict SRK: %v", err)
+	}
+}
 
 func cliActivateCredential(credBlob []byte, encSecret []byte) ([]byte, error) {
 	/*
@@ -78,112 +130,6 @@ func cliActivateCredential(credBlob []byte, encSecret []byte) ([]byte, error) {
 	}
 	fmt.Printf("%s\n", out)
 	return out, nil
-}
-
-func storePublicKey(prefix string, pub crypto.PublicKey) (*pem.Block, error) {
-	pubDER, err := x509.MarshalPKIXPublicKey(pub)
-	if err != nil {
-		log.Println("encoding public key")
-		return nil, err
-	}
-
-	if err := os.WriteFile(prefix+".pub", pubDER, 0644); err != nil {
-		log.Println("writing " + prefix + ".pub")
-		return nil, err
-	}
-
-	b := &pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}
-
-	if err := os.WriteFile(prefix+".pub.pem", pem.EncodeToMemory(b), 0644); err != nil {
-		log.Println("writing " + prefix + ".pub.pem")
-		return nil, err
-	}
-
-	return b, nil
-}
-
-func createEK() error {
-	fmt.Println("Generating EK...")
-	f, err := tpm2.OpenTPM(pathTPM)
-	if err != nil {
-		log.Fatalf("opening tpm: %v", err)
-	}
-	defer func() {
-		if err := f.Close(); err != nil {
-			log.Fatalf("closing tpm: %v", err)
-		}
-	}()
-
-	ek, pub, err := tpm2.CreatePrimary(f, tpm2.HandleEndorsement, tpm2.PCRSelection{}, "", "", defaultEKTemplate)
-	if err != nil {
-		log.Println("creating EK")
-		return err
-	}
-
-	// Save EK context
-	out, err := tpm2.ContextSave(f, ek)
-	if err != nil {
-		log.Println("Failed to generate EK context")
-		return err
-	}
-	if err := os.WriteFile("ek.ctx", out, 0644); err != nil {
-		log.Println("Failed to save EK context")
-		return err
-	}
-
-	// Store EK public key
-	b, err := storePublicKey("ek", pub)
-	if err != nil {
-		log.Println("Unable to store EK public key")
-		return err
-	}
-
-	return pem.Encode(os.Stdout, b)
-}
-
-func createSRK() error {
-	fmt.Println("Generating SRK...")
-	f, err := tpm2.OpenTPM(pathTPM)
-	if err != nil {
-		log.Fatalf("opening tpm: %v", err)
-	}
-	defer func() {
-		if err := f.Close(); err != nil {
-			log.Fatalf("closing tpm: %v", err)
-		}
-	}()
-
-	srk, pub, err := tpm2.CreatePrimary(f, tpm2.HandleOwner, tpm2.PCRSelection{}, "", "", defaultSRKTemplate)
-	if err != nil {
-		log.Println("creating SRK")
-		return err
-	}
-
-	// Persist the Key
-	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, srk, srkHandle); err != nil {
-		log.Println("Failed to make SRK persistent")
-		return err
-	}
-
-	// Save SRK context
-	out, err := tpm2.ContextSave(f, srk)
-	if err != nil {
-		log.Println("Failed to generate SRK context")
-		return err
-	}
-	if err := os.WriteFile("srk.ctx", out, 0644); err != nil {
-		log.Println("Failed to save SRK context")
-		return err
-	}
-
-	// Store SRK public key
-	b, err := storePublicKey("srk", pub)
-	if err != nil {
-		log.Println("Unable to store SRK public key")
-		return err
-	}
-
-	return pem.Encode(os.Stdout, b)
 }
 
 func createAK() error {
@@ -284,6 +230,12 @@ func createAppK() error {
 		return err
 	}
 
+	// Certify AppK
+	if err := certifyAppK(f, hash, ticket); err != nil {
+		log.Println("Unable to certify AppK")
+		return err
+	}
+
 	// Store AppK context
 	appkCtx, err := tpm2.ContextSave(f, appk)
 	if err != nil {
@@ -305,31 +257,7 @@ func createAppK() error {
 		return err
 	}
 
-	// To certify the new key, call CertifyCreation, passing the AK as the signing object.
-	// This returns an attestation and a signature
-	akTPMPub, _, _, err := tpm2.ReadPublic(f, akHandle)
-	if err != nil {
-		log.Println("Failed to read AK pub")
-		return err
-	}
-	sigParams := akTPMPub.ECCParameters.Sign
-	attestData, sigData, err := tpm2.CertifyCreation(f, "", appk, akHandle, nil, hash, *sigParams, ticket)
-	if err != nil {
-		log.Println("Failed to certify AppK creation")
-		return err
-	}
-
-	// Write attestation and signature to disk
-	if err := os.WriteFile("appk.attestation", attestData, 0644); err != nil {
-		log.Println("Failed to write appk.attestation")
-		return err
-	}
-	if err := os.WriteFile("appk.attestation.sig", sigData, 0644); err != nil {
-		log.Println("Failed to write appk.attestation.sig")
-		return err
-	}
-
-	// Store appk.pub and PEM and print PEM to stdout
+	// Store appk.pub and PEM, and print PEM to stdout
 	appkTPMPub, err := tpm2.DecodePublic(pubBlob)
 	if err != nil {
 		log.Println("Failed to decode AppK blob")
@@ -348,8 +276,8 @@ func createAppK() error {
 	return pem.Encode(os.Stdout, b)
 }
 
-func cleanClient() {
-	// Cleaning persistent handles
+func createEK() error {
+	fmt.Println("Generating EK...")
 	f, err := tpm2.OpenTPM(pathTPM)
 	if err != nil {
 		log.Fatalf("opening tpm: %v", err)
@@ -360,15 +288,98 @@ func cleanClient() {
 		}
 	}()
 
-	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, appkHandle, appkHandle); err != nil {
-		log.Printf("Unable to evict AppK: %v", err)
+	ek, pub, err := tpm2.CreatePrimary(f, tpm2.HandleEndorsement, tpm2.PCRSelection{}, "", "", defaultEKTemplate)
+	if err != nil {
+		log.Println("creating EK")
+		return err
 	}
-	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, akHandle, akHandle); err != nil {
-		log.Printf("Unable to evict AK: %v", err)
+
+	// Save EK context
+	out, err := tpm2.ContextSave(f, ek)
+	if err != nil {
+		log.Println("Failed to generate EK context")
+		return err
 	}
-	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, srkHandle, srkHandle); err != nil {
-		log.Printf("Unable to evict SRK: %v", err)
+	if err := os.WriteFile("ek.ctx", out, 0644); err != nil {
+		log.Println("Failed to save EK context")
+		return err
 	}
+
+	// Store EK public key
+	b, err := storePublicKey("ek", pub)
+	if err != nil {
+		log.Println("Unable to store EK public key")
+		return err
+	}
+
+	return pem.Encode(os.Stdout, b)
+}
+
+func createSRK() error {
+	fmt.Println("Generating SRK...")
+	f, err := tpm2.OpenTPM(pathTPM)
+	if err != nil {
+		log.Fatalf("opening tpm: %v", err)
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.Fatalf("closing tpm: %v", err)
+		}
+	}()
+
+	srk, pub, err := tpm2.CreatePrimary(f, tpm2.HandleOwner, tpm2.PCRSelection{}, "", "", defaultSRKTemplate)
+	if err != nil {
+		log.Println("creating SRK")
+		return err
+	}
+
+	// Persist the Key
+	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, srk, srkHandle); err != nil {
+		log.Println("Failed to make SRK persistent")
+		return err
+	}
+
+	// Save SRK context
+	out, err := tpm2.ContextSave(f, srk)
+	if err != nil {
+		log.Println("Failed to generate SRK context")
+		return err
+	}
+	if err := os.WriteFile("srk.ctx", out, 0644); err != nil {
+		log.Println("Failed to save SRK context")
+		return err
+	}
+
+	// Store SRK public key
+	b, err := storePublicKey("srk", pub)
+	if err != nil {
+		log.Println("Unable to store SRK public key")
+		return err
+	}
+
+	return pem.Encode(os.Stdout, b)
+}
+
+func storePublicKey(prefix string, pub crypto.PublicKey) (*pem.Block, error) {
+	pubDER, err := x509.MarshalPKIXPublicKey(pub)
+	if err != nil {
+		log.Println("encoding public key")
+		return nil, err
+	}
+
+	if err := os.WriteFile(prefix+".pub", pubDER, 0644); err != nil {
+		log.Println("writing " + prefix + ".pub")
+		return nil, err
+	}
+
+	b := &pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}
+
+	if err := os.WriteFile(prefix+".pub.pem", pem.EncodeToMemory(b), 0644); err != nil {
+		log.Println("writing " + prefix + ".pub.pem")
+		return nil, err
+	}
+
+	return b, nil
 }
 
 /*

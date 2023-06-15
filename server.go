@@ -108,7 +108,7 @@ func servChallenge(nameData []byte, pubBlob []byte) ([]byte, []byte, error) {
 	return credBlob, encSecret, nil
 }
 
-func caVerifyAppK() error {
+func servVerifyAppK() error {
 	return nil
 	/*
 		// Instead of a challenge and response dance, the CA simply verifies the signature
