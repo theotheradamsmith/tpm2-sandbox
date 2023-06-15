@@ -171,7 +171,7 @@ func createAK() error {
 	}
 
 	// Store the AK public key blob, which includes content such as the key attributes
-	if err := os.WriteFile("ak.pub.tpmt", pubBlob, 0644); err != nil {
+	if err := os.WriteFile(fileAKPubBlob, pubBlob, 0644); err != nil {
 		log.Println("Failed to write ak.pub.tpmt")
 		return err
 	}
@@ -238,7 +238,7 @@ func createAppK() error {
 	}
 
 	// Store the AppK public key blob, which includes content such as the key attributes
-	if err := os.WriteFile("appk.pub.tpmt", pubBlob, 0644); err != nil {
+	if err := os.WriteFile(fileAppKPubBlob, pubBlob, 0644); err != nil {
 		log.Println("Failed to write appk.pub.tpmt")
 		return err
 	}
@@ -270,7 +270,7 @@ func createAppK() error {
 	// Store appk.pub and PEM and print PEM to stdout
 	appkTPMPub, err := tpm2.DecodePublic(pubBlob)
 	if err != nil {
-		log.Println("FAILED TEST PUBLIC DECODE")
+		log.Println("Failed to decode AppK blob")
 		return err
 	}
 	appkPub, err := appkTPMPub.Key()

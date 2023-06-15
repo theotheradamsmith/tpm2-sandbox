@@ -20,9 +20,9 @@ func credentialActivation() error {
 		log.Println("Unable to open ak.name")
 		return err
 	}
-	akPubBlob, err := os.ReadFile("ak.pub.blob")
+	akPubBlob, err := os.ReadFile(fileAKPubBlob)
 	if err != nil {
-		log.Println("Unable to open ak.pub.blob")
+		log.Println("Unable to open " + fileAKPubBlob)
 		return err
 	}
 

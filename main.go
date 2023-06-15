@@ -7,8 +7,13 @@ import (
 	"github.com/google/go-tpm/tpm2"
 )
 
+const (
+	pathTPM         = "/dev/tpmrm0"
+	fileAKPubBlob   = "ak.pub.tpmt"
+	fileAppKPubBlob = "appk.pub.tpmt"
+)
+
 var (
-	pathTPM           = "/dev/tpmrm0"
 	defaultEKTemplate = tpm2.Public{
 		Type:    tpm2.AlgRSA,
 		NameAlg: tpm2.AlgSHA256,
