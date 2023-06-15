@@ -124,15 +124,28 @@ func serverTest() error {
 }
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("This is the arguments version of this nonsense")
-		return
-	}
+	/*
+		if len(os.Args) < 2 {
+			fmt.Println("This is the arguments version of this nonsense")
+			return
+		}
 
-	attestation := os.Args[1]
-	pub := os.Args[2]
-	if attestation != "99" {
-		attestation_verification_test(pub, attestation)
+		attestation := os.Args[1]
+		pub := os.Args[2]
+		if attestation != "99" {
+			attestation_verification_test(pub, attestation)
+		} else {
+			if err := clientTest(); err != nil {
+				log.Fatalf("Failure during Client Test: %v", err)
+			}
+			if err := serverTest(); err != nil {
+				log.Fatalf("Failure during Server Test: %v", err)
+			}
+		}
+	*/
+	if len(os.Args) == 2 && os.Args[1] == "clean" {
+		cleanClient()
+		return
 	} else {
 		if err := clientTest(); err != nil {
 			log.Fatalf("Failure during Client Test: %v", err)

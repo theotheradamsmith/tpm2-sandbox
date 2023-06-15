@@ -164,7 +164,7 @@ func createAK() error {
 		return err
 	}
 	if err := os.WriteFile("ak.pub.blob", pubBlob, 0644); err != nil {
-		log.Println("Failed to write ak.pub.blob")
+		log.Println("Failed to write ak.pub.tpmt")
 		return err
 	}
 
@@ -333,4 +333,48 @@ func createAppK() {
 	b := &pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}
 	fmt.Printf("Key attributres: 0x%08x\n", tpmPub.Attributes)
 	pem.Encode(os.Stdout, b)
+}
+
+func cleanClient() {
+	// Cleaning persistent handles
+	f, err := tpm2.OpenTPM(pathTPM)
+	if err != nil {
+		log.Fatalf("opening tpm: %v", err)
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.Fatalf("closing tpm: %v", err)
+		}
+	}()
+
+	srkCtx, err := os.ReadFile("srk.ctx")
+	if err != nil {
+		log.Fatalf("read srk: %v", err)
+	}
+	srk, err := tpm2.ContextLoad(f, srkCtx)
+	if err != nil {
+		log.Fatalf("load srk: %v", err)
+	}
+
+	akCtx, err := os.ReadFile("ak.ctx")
+	if err != nil {
+		log.Fatalf("read ak: %v", err)
+	}
+	ak, err := tpm2.ContextLoad(f, akCtx)
+	if err != nil {
+		log.Fatalf("load ak: %v", err)
+	}
+
+	appkCtx, err := os.ReadFile("appk.ctx")
+	if err != nil {
+		log.Fatalf("read ak: %v", err)
+	}
+	appk, err := tpm2.ContextLoad(f, appkCtx)
+	if err != nil {
+		log.Fatalf("load ak: %v", err)
+	}
+
+	tpm2.EvictControl(f, "", tpm2.HandleOwner, appk, appk)
+	tpm2.EvictControl(f, "", tpm2.HandleOwner, ak, ak)
+	tpm2.EvictControl(f, "", tpm2.HandleOwner, srk, srk)
 }
