@@ -8,7 +8,6 @@ import (
 )
 
 const (
-	pathTPM         = "/dev/tpmrm0"
 	fileAKPubBlob   = "ak.pub.tpmt"
 	fileAppKPubBlob = "appk.pub.tpmt"
 )
