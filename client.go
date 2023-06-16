@@ -12,6 +12,7 @@ import (
 	"log"
 	"math/big"
 	"os"
+	"os/exec"
 
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpmutil"
@@ -300,21 +301,26 @@ func createEK() error {
 	}
 
 	// Save EK context
-	out, err := tpm2.ContextSave(f, ek)
+	handle, err := tpm2.ContextSave(f, ek)
 	if err != nil {
 		log.Println("Failed to generate EK context")
 		return err
 	}
-	if err := os.WriteFile("ek.ctx", out, 0644); err != nil {
+	if err := os.WriteFile("ek.ctx", handle, 0644); err != nil {
 		log.Println("Failed to save EK context")
 		return err
+	}
+
+	// Pull the EK certificate (don't think they've implemented this in go-tpm)
+	cmd := exec.Command("tpm2_getekcertificate", "-o", "RSA_EK_cert.bin", "-o", "ECC_EK_cert.bin")
+	if _, err := cmd.Output(); err != nil {
+		log.Printf("unable to run tpm2_getekcertificate: %v", err)
 	}
 
 	// Store EK public key
 	b, err := storePublicKey("ek", pub)
 	if err != nil {
-		log.Println("Unable to store EK public key")
-		return err
+		return fmt.Errorf("unable to store EK public key: %v", err)
 	}
 
 	return pem.Encode(os.Stdout, b)
