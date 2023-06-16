@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -97,7 +98,6 @@ var (
 )
 
 func clientTest() error {
-	fmt.Println("Performing client functions...")
 	if err := createEK(); err != nil {
 		return fmt.Errorf("error generating EK: %v", err)
 	}
@@ -117,7 +117,6 @@ func clientTest() error {
 }
 
 func serverTest() error {
-	fmt.Println("Performing server/verification functions...")
 	akNameData, err := os.ReadFile("ak.name")
 	if err != nil {
 		return fmt.Errorf("unable to open ak.name: %v", err)
@@ -150,36 +149,80 @@ func serverTest() error {
 	return nil
 }
 
-func main() {
-	/*
-		if len(os.Args) < 2 {
-			fmt.Println("This is the arguments version of this nonsense")
-			return
-		}
-
-		attestation := os.Args[1]
-		pub := os.Args[2]
-		if attestation != "99" {
-			attestation_verification_test(pub, attestation)
-		} else {
-			if err := clientTest(); err != nil {
-				log.Fatalf("Failure during Client Test: %v", err)
-			}
-			if err := serverTest(); err != nil {
-				log.Fatalf("Failure during Server Test: %v", err)
-			}
-		}
-	*/
-	if len(os.Args) == 2 && os.Args[1] == "clean" {
+func fullTest() error {
+	fmt.Println("Performing client functions...")
+	if err := clientTest(); err != nil {
 		cleanClient()
-		return
-	} else {
-		if err := clientTest(); err != nil {
+		return fmt.Errorf("failure during client test: %v", err)
+	}
+	fmt.Println("Performing server/verification functions...")
+	if err := serverTest(); err != nil {
+		return fmt.Errorf("failure during server test: %v", err)
+	}
+	return nil
+}
+
+func main() {
+	attestCmd := flag.NewFlagSet("attest", flag.ExitOnError)
+	attestAttest := attestCmd.String("attest", "", "the attestation file")
+	attestPubBlob := attestCmd.String("pub", "", "the public key blob")
+
+	clientCmd := flag.NewFlagSet("client", flag.ExitOnError)
+	clientRunTest := clientCmd.Bool("test", false, "perform full client test")
+	clientRunClean := clientCmd.Bool("clean", false, "evict persistent handles")
+
+	serverCmd := flag.NewFlagSet("server", flag.ExitOnError)
+	serverRunTest := serverCmd.Bool("test", false, "perform full server test")
+
+	if len(os.Args) < 2 {
+		fmt.Println("Executing full test procedure")
+		if err := fullTest(); err != nil {
+			log.Fatalf("full test failure: %v", err)
+		}
+		os.Exit(1)
+	}
+
+	switch os.Args[1] {
+	case "attest":
+		attestCmd.Parse(os.Args[2:])
+	case "client":
+		clientCmd.Parse(os.Args[2:])
+	case "server":
+		serverCmd.Parse(os.Args[2:])
+	default:
+		fmt.Println("expected 'attest', 'client', or 'server' subcommands")
+		os.Exit(1)
+	}
+
+	if attestCmd.Parsed() {
+		if err := attestation_verification_test(*attestPubBlob, *attestAttest); err != nil {
+			log.Fatalf("failure during attestation verification test: %v", err)
+		}
+		os.Exit(1)
+	}
+
+	if clientCmd.Parsed() {
+		if *clientRunTest {
+			fmt.Println("running client tests...")
+			if err := clientTest(); err != nil {
+				cleanClient()
+				log.Fatalf("failure during client test: %v", err)
+			}
+		}
+		if *clientRunClean {
+			fmt.Println("cleaning client...")
 			cleanClient()
-			log.Fatalf("Failure during Client Test: %v", err)
 		}
-		if err := serverTest(); err != nil {
-			log.Fatalf("Failure during Server Test: %v", err)
+		os.Exit(1)
+	}
+
+	if serverCmd.Parsed() {
+		if *serverRunTest {
+			fmt.Println("running server/verification tests")
+			if err := serverTest(); err != nil {
+				log.Fatalf("filure during server test: %v", err)
+			}
 		}
+		os.Exit(1)
 	}
 }

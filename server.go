@@ -205,57 +205,46 @@ func servVerifyIID(appkPubBlob []byte) error {
 	}
 }
 
-/*
-
-func getAttestedCreationNameDigest(attestData []byte) (tpmutil.U16Bytes, error) {
-	a, err := tpm2.DecodeAttestationData(attestData)
+func attestation_verification_test(pFile string, aFile string) error {
+	pubBlob, err := os.ReadFile(pFile)
 	if err != nil {
-		return nil, err
-	}
-
-	return a.AttestedCreationInfo.Name.Digest.Value, nil
-}
-
-func attestation_verification_test(p string, a string) {
-	pubBlob, err := os.ReadFile(p)
-	if err != nil {
-		fmt.Printf("Error reading file: %v\n", err)
-		return
+		return fmt.Errorf("error reading file: %v", err)
 	}
 	fmt.Printf("Contents of pubBlob: %x\n", pubBlob)
 	tpmPub, err := tpm2.DecodePublic(pubBlob)
 	if err != nil {
-		log.Fatalf("decode public blob: %v", err)
+		return fmt.Errorf("decode public blob: %v", err)
 	}
 	pub, err := tpmPub.Key()
 	if err != nil {
-		log.Fatalf("decode public key: %v", err)
+		return fmt.Errorf("decode public key: %v", err)
 	}
 	pubDER, err := x509.MarshalPKIXPublicKey(pub)
 	if err != nil {
-		log.Fatalf("encoding public key: %v", err)
+		return fmt.Errorf("encoding public key: %v", err)
 	}
 	b := &pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}
 	fmt.Printf("Key attributes: 0x%08x\n", tpmPub.Attributes)
 	pem.Encode(os.Stdout, b)
 
-	attestData, err := os.ReadFile(a)
+	attestData, err := os.ReadFile(aFile)
 	if err != nil {
-		fmt.Printf("Error reading file: %v\n", err)
-		return
+		return fmt.Errorf("error reading file: %v", err)
 	}
-	attestedNameDigest, err := getAttestedCreationNameDigest(attestData)
+
+	a, err := tpm2.DecodeAttestationData(attestData)
 	if err != nil {
-		fmt.Printf("Error parsing attestation: %v\n", err)
+		return fmt.Errorf("unable to decode attestation: %v", err)
 	}
+	attestedNameDigest := a.AttestedCreationInfo.Name.Digest.Value
 
 	pubDigest := sha256.Sum256(pubBlob)
 	if !bytes.Equal(attestedNameDigest, pubDigest[:]) {
 		fmt.Printf("\n\nAttested Name: %v\n", attestedNameDigest)
 		fmt.Printf("PubDigest Val: %v\n\n", pubDigest[:])
-		log.Fatalf("attestation was not for public blob")
+		return fmt.Errorf("attestation was not for public blob")
 	} else {
 		fmt.Println("Attestation was valid")
 	}
+	return nil
 }
-*/
