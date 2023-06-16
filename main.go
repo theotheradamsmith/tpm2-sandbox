@@ -116,7 +116,7 @@ func clientTest() error {
 	return nil
 }
 
-func serverTest() error {
+func serverTest(checkCA bool) error {
 	akNameData, err := os.ReadFile("ak.name")
 	if err != nil {
 		return fmt.Errorf("unable to open ak.name: %v", err)
@@ -137,7 +137,7 @@ func serverTest() error {
 	if err != nil {
 		return fmt.Errorf("unable to open "+fileAppKPubBlob+": %v", err)
 	}
-	if err := credentialActivation(akNameData, akPubBlob); err != nil {
+	if err := credentialActivation(akNameData, akPubBlob, checkCA); err != nil {
 		return fmt.Errorf("unable to perform credential activation: %v", err)
 	}
 	if err := servVerifyAppK(appkAttestDat, appkAttestSig, akPubBlob, appkPubBlob); err != nil {
@@ -156,7 +156,7 @@ func fullTest() error {
 		return fmt.Errorf("failure during client test: %v", err)
 	}
 	fmt.Println("Performing server/verification functions...")
-	if err := serverTest(); err != nil {
+	if err := serverTest(false); err != nil {
 		return fmt.Errorf("failure during server test: %v", err)
 	}
 	return nil
@@ -173,6 +173,7 @@ func main() {
 
 	serverCmd := flag.NewFlagSet("server", flag.ExitOnError)
 	serverRunTest := serverCmd.Bool("test", false, "perform full server test")
+	serverCheckCA := serverCmd.Bool("ca", false, "use the EK cert and perform a CA check")
 
 	if len(os.Args) < 2 {
 		fmt.Println("Executing full test procedure")
@@ -223,7 +224,7 @@ func main() {
 	if serverCmd.Parsed() {
 		if *serverRunTest {
 			fmt.Println("running server/verification tests")
-			if err := serverTest(); err != nil {
+			if err := serverTest(*serverCheckCA); err != nil {
 				log.Fatalf("filure during server test: %v", err)
 			}
 		}

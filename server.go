@@ -17,8 +17,8 @@ import (
 
 var secret = []byte("Aren't cats just the best?")
 
-func credentialActivation(akNameData []byte, akPubBlob []byte) error {
-	credBlob, encSecret, err := servChallenge(akNameData, akPubBlob)
+func credentialActivation(akNameData []byte, akPubBlob []byte, checkCA bool) error {
+	credBlob, encSecret, err := servChallenge(akNameData, akPubBlob, checkCA)
 	if err != nil {
 		log.Println("CA failed to generate challenge")
 		return err
@@ -38,7 +38,14 @@ func credentialActivation(akNameData []byte, akPubBlob []byte) error {
 	return nil
 }
 
-func servChallenge(nameData []byte, pubBlob []byte) ([]byte, []byte, error) {
+func servChallenge(nameData []byte, pubBlob []byte, checkCA bool) ([]byte, []byte, error) {
+	var ekPath string
+	if checkCA {
+		ekPath = "RSA_EK_pub.der"
+	} else {
+		ekPath = "ek.pub.der"
+	}
+
 	/*
 		The challenge asks the EK to verify another key name is also loaded into the TPM.
 		Because key names are digests of the public key blob, the CA can verify public key
@@ -46,7 +53,6 @@ func servChallenge(nameData []byte, pubBlob []byte) ([]byte, []byte, error) {
 
 		Included in the encrypted blob is a secret that the CA tracks with the challenge.
 	*/
-
 	// Verify digest matches the public blob that was provided
 	name, err := tpm2.DecodeName(bytes.NewBuffer(nameData))
 	if err != nil {
@@ -76,9 +82,9 @@ func servChallenge(nameData []byte, pubBlob []byte) ([]byte, []byte, error) {
 	// Generate a challenge for the name.
 	//
 	// Note that some TPMs enforce a maximum secret size of 32 bytes
-	ekPubDer, err := os.ReadFile("ek.pub")
+	ekPubDer, err := os.ReadFile(ekPath)
 	if err != nil {
-		log.Println("Unable to read ek.pub")
+		log.Println("Unable to read " + ekPath)
 		return nil, nil, err
 	}
 	ekPub, err := x509.ParsePKIXPublicKey(ekPubDer)
