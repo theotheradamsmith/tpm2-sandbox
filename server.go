@@ -207,7 +207,7 @@ func servVerifyIID(appkPubBlob []byte) error {
 
 func attestation_verification_test(pFile string, aFile string) error {
 	fmt.Println("Performing attestation verification test...")
-	fmt.Printf("Loading public blob: %s", pFile)
+	fmt.Printf("Loading public blob: %s\n", pFile)
 	pubBlob, err := os.ReadFile(pFile)
 	if err != nil {
 		return fmt.Errorf("error reading file: %v", err)
@@ -229,7 +229,7 @@ func attestation_verification_test(pFile string, aFile string) error {
 	fmt.Printf("Key attributes: 0x%08x\n", tpmPub.Attributes)
 	pem.Encode(os.Stdout, b)
 
-	fmt.Printf("Loading attestation data: %s", aFile)
+	fmt.Printf("Loading attestation data: %s\n", aFile)
 	attestData, err := os.ReadFile(aFile)
 	if err != nil {
 		return fmt.Errorf("error reading file: %v", err)
