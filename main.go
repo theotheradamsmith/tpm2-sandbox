@@ -195,6 +195,10 @@ func main() {
 	}
 
 	if attestCmd.Parsed() {
+		if *attestAttest == "" || *attestPubBlob == "" {
+			log.Fatalf("attestation verification test requires 'attest' and 'pub'")
+		}
+
 		if err := attestation_verification_test(*attestPubBlob, *attestAttest); err != nil {
 			log.Fatalf("failure during attestation verification test: %v", err)
 		}
