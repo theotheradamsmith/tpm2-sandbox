@@ -13,7 +13,6 @@ import (
 
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/credactivation"
-	"github.com/google/go-tpm/tpmutil"
 )
 
 var secret = []byte("Aren't cats just the best?")
@@ -171,6 +170,43 @@ func servVerifyAppK(appkAttestDat []byte, appkAttestSig []byte, akPubBlob []byte
 	return pem.Encode(os.Stdout, b)
 }
 
+func servVerifyIID(appkPubBlob []byte) error {
+	// Load IID & create digest, and load IID signature
+	msg, err := os.ReadFile("iid.raw")
+	if err != nil {
+		return fmt.Errorf("unable to read iid.raw: %v", err)
+	}
+	digest := sha256.Sum256(msg)
+	sig, err := os.ReadFile("iid.sig")
+	if err != nil {
+		return fmt.Errorf("unable to read iid.sig: %v", err)
+	}
+
+	// Get the AppK public key
+	appkTPMPub, err := tpm2.DecodePublic(appkPubBlob)
+	if err != nil {
+		return fmt.Errorf("unable to decode AppK public blob: %v", err)
+	}
+	appkPub, err := appkTPMPub.Key()
+	if err != nil {
+		return fmt.Errorf("unable to retrieve AppK public key: %v", err)
+	}
+	appkPubECDSA, ok := appkPub.(*ecdsa.PublicKey)
+	if !ok {
+		return fmt.Errorf("expected ecdsa public key, got: %T", appkPub)
+	}
+
+	if !ecdsa.VerifyASN1(appkPubECDSA, digest[:], sig) {
+		log.Println("WARNING: IID cannot be verified!")
+		return fmt.Errorf("failed to verify signature: %v", err)
+	} else {
+		log.Println("Good news! IID is confirmed!")
+		return nil
+	}
+}
+
+/*
+
 func getAttestedCreationNameDigest(attestData []byte) (tpmutil.U16Bytes, error) {
 	a, err := tpm2.DecodeAttestationData(attestData)
 	if err != nil {
@@ -222,3 +258,4 @@ func attestation_verification_test(p string, a string) {
 		fmt.Println("Attestation was valid")
 	}
 }
+*/

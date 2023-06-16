@@ -2,14 +2,19 @@ package main
 
 import (
 	"crypto"
+	"crypto/rand"
+	"crypto/sha256"
 	"crypto/x509"
+	"encoding/asn1"
 	"encoding/pem"
 	"fmt"
 	"io"
 	"log"
+	"math/big"
 	"os"
 
 	"github.com/google/go-tpm/tpm2"
+	"github.com/google/go-tpm/tpmutil"
 )
 
 const (
@@ -358,6 +363,83 @@ func createSRK() error {
 	}
 
 	return pem.Encode(os.Stdout, b)
+}
+
+type signer struct {
+	tpm io.ReadWriter
+	h   tpmutil.Handle
+	pub crypto.PublicKey
+}
+
+func (s *signer) Public() crypto.PublicKey {
+	return s.pub
+}
+
+func (s *signer) Sign(r io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+	sig, err := tpm2.Sign(s.tpm, s.h, "", digest, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("unable to sign data: %v", err)
+	}
+	if sig.RSA != nil {
+		return sig.RSA.Signature, nil
+	}
+	if sig.ECC != nil {
+		return asn1.Marshal(struct {
+			R *big.Int
+			S *big.Int
+		}{sig.ECC.R, sig.ECC.S})
+	}
+	return nil, fmt.Errorf("unsupported signature type: %v", sig.Alg)
+}
+
+func newSigner(tpm io.ReadWriter, h tpmutil.Handle) (*signer, error) {
+	tpmPub, _, _, err := tpm2.ReadPublic(tpm, h)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read public blob: %v", err)
+	}
+	pub, err := tpmPub.Key()
+	if err != nil {
+		return nil, fmt.Errorf("unable to decode public key: %v", err)
+	}
+	return &signer{tpm, h, pub}, nil
+}
+
+func signIID() error {
+	fmt.Println("Signing IID...")
+	f, err := tpm2.OpenTPM(pathTPM)
+	if err != nil {
+		log.Fatalf("opening tpm: %v", err)
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.Fatalf("closing tpm: %v", err)
+		}
+	}()
+
+	// Create signer
+	priv, err := newSigner(f, appkHandle)
+	if err != nil {
+		return fmt.Errorf("unable to create signer: %v", err)
+	}
+
+	// Load IID & create digest
+	msg, err := os.ReadFile("iid.raw")
+	if err != nil {
+		return fmt.Errorf("unable to read iid.raw: %v", err)
+	}
+	digest := sha256.Sum256(msg)
+
+	// Sign & write signature
+	sig, err := priv.Sign(rand.Reader, digest[:], crypto.SHA256)
+	if err != nil {
+		return fmt.Errorf("unable to sign data: %v", err)
+	}
+
+	if err := os.WriteFile("iid.sig", sig, 0644); err != nil {
+		return fmt.Errorf("unable to write iid.sig: %v", err)
+	}
+
+	return nil
 }
 
 func storePublicKey(prefix string, pub crypto.PublicKey) (*pem.Block, error) {

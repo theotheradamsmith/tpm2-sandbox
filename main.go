@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 
@@ -97,60 +98,53 @@ var (
 
 func clientTest() error {
 	if err := createEK(); err != nil {
-		log.Println("Error generating EK")
-		return err
+		return fmt.Errorf("error generating EK: %v", err)
 	}
 	if err := createSRK(); err != nil {
-		log.Println("Error generating SRK")
-		return err
+		return fmt.Errorf("error generating SRK: %v", err)
 	}
 	if err := createAK(); err != nil {
-		log.Println("Error generating AK")
-		return err
+		return fmt.Errorf("error generating AK: %v", err)
 	}
 	if err := createAppK(); err != nil {
-		log.Println("Error generating AppK")
+		return fmt.Errorf("error generating AppK: %v", err)
 	}
-
+	if err := signIID(); err != nil {
+		return fmt.Errorf("error signing IID: %v", err)
+	}
 	return nil
 }
 
 func serverTest() error {
 	akNameData, err := os.ReadFile("ak.name")
 	if err != nil {
-		log.Println("Unable to open ak.name")
-		return err
+		return fmt.Errorf("unable to open ak.name: %v", err)
 	}
 	akPubBlob, err := os.ReadFile(fileAKPubBlob)
 	if err != nil {
-		log.Println("Unable to open " + fileAKPubBlob)
-		return err
+		return fmt.Errorf("unable to open "+fileAKPubBlob+": %v", err)
 	}
 	appkAttestDat, err := os.ReadFile(fileAppKAttestDat)
 	if err != nil {
-		log.Println("Unable to load " + fileAppKAttestDat)
-		return err
+		return fmt.Errorf("unable to open "+fileAppKAttestDat+": %v", err)
 	}
 	appkAttestSig, err := os.ReadFile(fileAppKAttestSig)
 	if err != nil {
-		log.Println("Unable to load " + fileAppKAttestSig)
-		return err
+		return fmt.Errorf("unable to open "+fileAppKAttestSig+": %v", err)
 	}
 	appkPubBlob, err := os.ReadFile(fileAppKPubBlob)
 	if err != nil {
-		log.Println("Unable to load " + fileAppKPubBlob)
-		return err
+		return fmt.Errorf("unable to open "+fileAppKPubBlob+": %v", err)
 	}
-
 	if err := credentialActivation(akNameData, akPubBlob); err != nil {
-		log.Println("Unable to perform Credential Activation.")
-		return err
+		return fmt.Errorf("unable to perform credential activation: %v", err)
 	}
 	if err := servVerifyAppK(appkAttestDat, appkAttestSig, akPubBlob, appkPubBlob); err != nil {
-		log.Println("Unable to verify AppK")
-		return err
+		return fmt.Errorf("unable to verify AppK: %v", err)
 	}
-
+	if err := servVerifyIID(appkPubBlob); err != nil {
+		return fmt.Errorf("unable to verify IID: %v", err)
+	}
 	return nil
 }
 
