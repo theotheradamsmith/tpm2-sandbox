@@ -449,8 +449,8 @@ func storePublicKey(prefix string, pub crypto.PublicKey) (*pem.Block, error) {
 		return nil, err
 	}
 
-	if err := os.WriteFile(prefix+".pub", pubDER, 0644); err != nil {
-		log.Println("writing " + prefix + ".pub")
+	if err := os.WriteFile(prefix+".pub.der", pubDER, 0644); err != nil {
+		log.Println("writing " + prefix + ".pub.der")
 		return nil, err
 	}
 
