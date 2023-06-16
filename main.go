@@ -97,6 +97,7 @@ var (
 )
 
 func clientTest() error {
+	fmt.Println("Performing client functions...")
 	if err := createEK(); err != nil {
 		return fmt.Errorf("error generating EK: %v", err)
 	}
@@ -116,6 +117,7 @@ func clientTest() error {
 }
 
 func serverTest() error {
+	fmt.Println("Performing server/verification functions...")
 	akNameData, err := os.ReadFile("ak.name")
 	if err != nil {
 		return fmt.Errorf("unable to open ak.name: %v", err)
