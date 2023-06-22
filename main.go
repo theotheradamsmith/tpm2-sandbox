@@ -200,7 +200,7 @@ func main() {
 	case "server":
 		serverCmd.Parse(os.Args[2:])
 	case "verify":
-		serverCmd.Parse(os.Args[2:])
+		verifyCmd.Parse(os.Args[2:])
 	default:
 		fmt.Println("expected 'attest', 'client', or 'server' subcommands")
 		os.Exit(1)
