@@ -258,6 +258,7 @@ func main() {
 
 		var pubCrypto crypto.PublicKey
 		if *verifyPubDer != "" {
+			log.Println("Parsing der...")
 			pubByte, err := os.ReadFile(*verifyPubDer)
 			if err != nil {
 				log.Fatalf("unable to read %s: %v", *verifyPubDer, err)
@@ -267,6 +268,7 @@ func main() {
 				log.Fatalf("unable to parse public key: %v", err)
 			}
 		} else {
+			log.Println("Parsing pem...")
 			pubByte, err := os.ReadFile(*verifyPubPem)
 			if err != nil {
 				log.Fatalf("unable to read %s: %v", *verifyPubPem, err)
