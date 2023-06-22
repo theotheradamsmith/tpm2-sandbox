@@ -1,6 +1,9 @@
 package main
 
 import (
+	"crypto"
+	"crypto/x509"
+	"encoding/pem"
 	"flag"
 	"fmt"
 	"log"
@@ -175,6 +178,12 @@ func main() {
 	serverRunTest := serverCmd.Bool("test", false, "perform full server test")
 	serverCheckCA := serverCmd.Bool("ca", false, "use the EK cert and perform a CA check")
 
+	verifyCmd := flag.NewFlagSet("verify", flag.ExitOnError)
+	verifyMsg := verifyCmd.String("msg", "", "the raw message")
+	verifyPubDer := verifyCmd.String("der", "", "the public key in der format")
+	verifyPubPem := verifyCmd.String("pem", "", "the public key in pem format")
+	verifySig := verifyCmd.String("sig", "", "the signature")
+
 	if len(os.Args) < 2 {
 		fmt.Println("Executing full test procedure")
 		if err := fullTest(); err != nil {
@@ -189,6 +198,8 @@ func main() {
 	case "client":
 		clientCmd.Parse(os.Args[2:])
 	case "server":
+		serverCmd.Parse(os.Args[2:])
+	case "verify":
 		serverCmd.Parse(os.Args[2:])
 	default:
 		fmt.Println("expected 'attest', 'client', or 'server' subcommands")
@@ -227,6 +238,52 @@ func main() {
 			if err := serverTest(*serverCheckCA); err != nil {
 				log.Fatalf("filure during server test: %v", err)
 			}
+		}
+		os.Exit(1)
+	}
+
+	if verifyCmd.Parsed() {
+		if *verifyMsg == "" || *verifySig == "" || (*verifyPubDer == "" && *verifyPubPem == "") {
+			log.Fatalf("sig verification test requires 'msg', 'sig', and a key")
+		}
+
+		msg, err := os.ReadFile(*verifyMsg)
+		if err != nil {
+			log.Fatalf("unable to read %s: %v", *verifyMsg, err)
+		}
+		sig, err := os.ReadFile(*verifySig)
+		if err != nil {
+			log.Fatalf("unable to read %s: %v", *verifySig, err)
+		}
+
+		var pubCrypto crypto.PublicKey
+		if *verifyPubDer != "" {
+			pubByte, err := os.ReadFile(*verifyPubDer)
+			if err != nil {
+				log.Fatalf("unable to read %s: %v", *verifyPubDer, err)
+			}
+			pubCrypto, err = x509.ParsePKIXPublicKey(pubByte)
+			if err != nil {
+				log.Fatalf("unable to parse public key: %v", err)
+			}
+		} else {
+			pubByte, err := os.ReadFile(*verifyPubPem)
+			if err != nil {
+				log.Fatalf("unable to read %s: %v", *verifyPubPem, err)
+			}
+			block, _ := pem.Decode(pubByte)
+			if block == nil || block.Type != "PUBLIC KEY" {
+				log.Fatalf("failed to decode PEM block containing pulic key")
+			}
+
+			pubCrypto, err = x509.ParsePKIXPublicKey(block.Bytes)
+			if err != nil {
+				log.Fatalf("unable to parse public key: %v", err)
+			}
+		}
+
+		if err := testIIDVerification(msg, sig, pubCrypto); err != nil {
+			log.Fatalf("failure during iid verification test: %v", err)
 		}
 		os.Exit(1)
 	}

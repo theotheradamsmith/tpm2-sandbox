@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/sha256"
 	"crypto/x509"
@@ -204,7 +205,23 @@ func servVerifyIID(appkPubBlob []byte) error {
 
 	if !ecdsa.VerifyASN1(appkPubECDSA, digest[:], sig) {
 		log.Println("WARNING: IID cannot be verified!")
-		return fmt.Errorf("failed to verify signature: %v", err)
+		return fmt.Errorf("failed to verify signature")
+	} else {
+		log.Println("Good news! IID is confirmed!")
+		return nil
+	}
+}
+
+func testIIDVerification(msg []byte, sig []byte, pub crypto.PublicKey) error {
+	digest := sha256.Sum256(msg)
+	pubECDSA, ok := pub.(*ecdsa.PublicKey)
+	if !ok {
+		return fmt.Errorf("expected ecdsa public key, got: %T", pub)
+	}
+
+	if !ecdsa.VerifyASN1(pubECDSA, digest[:], sig) {
+		log.Println("WARNING: IID cannot be verified!")
+		return fmt.Errorf("failed to verify signature")
 	} else {
 		log.Println("Good news! IID is confirmed!")
 		return nil
