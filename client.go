@@ -20,10 +20,9 @@ import (
 
 const (
 	// Defined in "Registry of reserved TPM 2.0 handles and localities", and checked on a glinux machine.
-	ekHandle   = 0x81010001
-	srkHandle  = 0x81000001
-	akHandle   = 0x81008001
-	appkHandle = 0x81008002
+	srkHandle  = 0x81000000
+	akHandle   = 0x81008000
+	appkHandle = 0x81008001
 
 	devTPM = "/dev/tpmrm0"
 )
@@ -77,9 +76,6 @@ func cleanClient() {
 	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, srkHandle, srkHandle); err != nil {
 		log.Printf("Unable to evict SRK: %v", err)
 	}
-	if err := tpm2.EvictControl(f, "", tpm2.HandleEndorsement, ekHandle, ekHandle); err != nil {
-		log.Printf("Unable to evict EK: %v", err)
-	}
 }
 
 func cliActivateCredential(credBlob []byte, encSecret []byte) ([]byte, error) {
@@ -121,22 +117,19 @@ func cliActivateCredential(credBlob []byte, encSecret []byte) ([]byte, error) {
 	}
 
 	// Get the EK public key
-	/*
-		ekCtx, err := os.ReadFile(pathUserInternal + "ek.ctx")
-		if err != nil {
-			log.Println("Unable to read ek.ctx")
-			return nil, err
-		}
-		ek, err := tpm2.ContextLoad(f, ekCtx)
-		if err != nil {
-			log.Println("Unable to load EK")
-			return nil, err
-		}
-	*/
+	ekCtx, err := os.ReadFile(pathUserInternal + "ek.ctx")
+	if err != nil {
+		log.Println("Unable to read ek.ctx")
+		return nil, err
+	}
+	ek, err := tpm2.ContextLoad(f, ekCtx)
+	if err != nil {
+		log.Println("Unable to load EK")
+		return nil, err
+	}
 
 	auths := []tpm2.AuthCommand{auth, {Session: session, Attributes: tpm2.AttrContinueSession}}
-	//out, err := tpm2.ActivateCredentialUsingAuth(f, auths, akHandle, ek, credBlob[2:], encSecret[2:])
-	out, err := tpm2.ActivateCredentialUsingAuth(f, auths, akHandle, ekHandle, credBlob[2:], encSecret[2:])
+	out, err := tpm2.ActivateCredentialUsingAuth(f, auths, akHandle, ek, credBlob[2:], encSecret[2:])
 	if err != nil {
 		log.Println("Failed to activate credential")
 		return nil, err
@@ -315,12 +308,6 @@ func createEK() error {
 	}
 	if err := os.WriteFile(pathUserInternal+"ek.ctx", handle, 0644); err != nil {
 		log.Println("Failed to save EK context")
-		return err
-	}
-
-	// Persist the Key
-	if err := tpm2.EvictControl(f, "", tpm2.HandleEndorsement, ek, ekHandle); err != nil {
-		log.Println("Failed to make EK persistent")
 		return err
 	}
 
