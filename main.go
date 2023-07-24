@@ -13,6 +13,13 @@ import (
 )
 
 const (
+	pathData = "/mnt/uapl/data/"
+	pathIID  = pathData + "adoption.id"
+
+	pathTPM          = pathData + "tpm/"
+	pathUserInternal = pathData + "internal/"
+	pathUserPublic   = pathTPM + "public/"
+
 	fileAKPubBlob     = "ak.pub.tpmt"
 	fileAppKPubBlob   = "appk.pub.tpmt"
 	fileAppKAttestSig = "appk.attestation.sig"
@@ -120,23 +127,23 @@ func clientTest() error {
 }
 
 func serverTest(checkCA bool) error {
-	akNameData, err := os.ReadFile("ak.name")
+	akNameData, err := os.ReadFile(pathUserPublic + "ak.name")
 	if err != nil {
 		return fmt.Errorf("unable to open ak.name: %v", err)
 	}
-	akPubBlob, err := os.ReadFile(fileAKPubBlob)
+	akPubBlob, err := os.ReadFile(pathUserPublic + fileAKPubBlob)
 	if err != nil {
 		return fmt.Errorf("unable to open "+fileAKPubBlob+": %v", err)
 	}
-	appkAttestDat, err := os.ReadFile(fileAppKAttestDat)
+	appkAttestDat, err := os.ReadFile(pathUserPublic + fileAppKAttestDat)
 	if err != nil {
 		return fmt.Errorf("unable to open "+fileAppKAttestDat+": %v", err)
 	}
-	appkAttestSig, err := os.ReadFile(fileAppKAttestSig)
+	appkAttestSig, err := os.ReadFile(pathUserPublic + fileAppKAttestSig)
 	if err != nil {
 		return fmt.Errorf("unable to open "+fileAppKAttestSig+": %v", err)
 	}
-	appkPubBlob, err := os.ReadFile(fileAppKPubBlob)
+	appkPubBlob, err := os.ReadFile(pathUserPublic + fileAppKPubBlob)
 	if err != nil {
 		return fmt.Errorf("unable to open "+fileAppKPubBlob+": %v", err)
 	}

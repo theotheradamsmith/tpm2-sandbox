@@ -24,7 +24,7 @@ const (
 	akHandle   = 0x81000002
 	appkHandle = 0x81000003
 
-	pathTPM = "/dev/tpmrm0"
+	devTPM = "/dev/tpmrm0"
 )
 
 func certifyAppK(f io.ReadWriteCloser, hash []byte, ticket tpm2.Ticket) error {
@@ -43,11 +43,11 @@ func certifyAppK(f io.ReadWriteCloser, hash []byte, ticket tpm2.Ticket) error {
 	}
 
 	// Write attestation and signature to disk
-	if err := os.WriteFile(fileAppKAttestDat, attestData, 0644); err != nil {
+	if err := os.WriteFile(pathUserPublic+fileAppKAttestDat, attestData, 0644); err != nil {
 		log.Println("Failed to write appk.attestation")
 		return err
 	}
-	if err := os.WriteFile(fileAppKAttestSig, sigData, 0644); err != nil {
+	if err := os.WriteFile(pathUserPublic+fileAppKAttestSig, sigData, 0644); err != nil {
 		log.Println("Failed to write appk.attestation.sig")
 		return err
 	}
@@ -57,7 +57,7 @@ func certifyAppK(f io.ReadWriteCloser, hash []byte, ticket tpm2.Ticket) error {
 
 func cleanClient() {
 	// Cleaning persistent handles
-	f, err := tpm2.OpenTPM(pathTPM)
+	f, err := tpm2.OpenTPM(devTPM)
 	if err != nil {
 		log.Fatalf("opening tpm: %v", err)
 	}
@@ -87,7 +87,7 @@ func cliActivateCredential(credBlob []byte, encSecret []byte) ([]byte, error) {
 		TPM2_PolicySecret(TPM_RH_ENDORSEMENT), so we execute the same command
 		to match the digest
 	*/
-	f, err := tpm2.OpenTPM(pathTPM)
+	f, err := tpm2.OpenTPM(devTPM)
 	if err != nil {
 		log.Fatalf("opening tpm: %v", err)
 	}
@@ -140,7 +140,7 @@ func cliActivateCredential(credBlob []byte, encSecret []byte) ([]byte, error) {
 
 func createAK() error {
 	fmt.Println("Generating AK...")
-	f, err := tpm2.OpenTPM(pathTPM)
+	f, err := tpm2.OpenTPM(devTPM)
 	if err != nil {
 		log.Fatalf("opening tpm: %v", err)
 	}
@@ -173,19 +173,19 @@ func createAK() error {
 		log.Println("Failed to generate AK ctx")
 		return err
 	}
-	if err := os.WriteFile("ak.ctx", akCtx, 0644); err != nil {
+	if err := os.WriteFile(pathUserInternal+"ak.ctx", akCtx, 0644); err != nil {
 		log.Println("Failed to save AK ctx")
 		return err
 	}
 
 	// Store the AK name, which is a hash of the public key blob
-	if err := os.WriteFile("ak.name", nameData, 0644); err != nil {
+	if err := os.WriteFile(pathUserPublic+"ak.name", nameData, 0644); err != nil {
 		log.Println("Failed to write ak.name")
 		return err
 	}
 
 	// Store the AK public key blob, which includes content such as the key attributes
-	if err := os.WriteFile(fileAKPubBlob, pubBlob, 0644); err != nil {
+	if err := os.WriteFile(pathUserPublic+fileAKPubBlob, pubBlob, 0644); err != nil {
 		log.Println("Failed to write ak.pub.tpmt")
 		return err
 	}
@@ -208,7 +208,7 @@ func createAK() error {
 
 func createAppK() error {
 	fmt.Println("Generating Application Key...")
-	f, err := tpm2.OpenTPM(pathTPM)
+	f, err := tpm2.OpenTPM(devTPM)
 	if err != nil {
 		log.Fatalf("opening tpm: %v", err)
 	}
@@ -247,18 +247,18 @@ func createAppK() error {
 	if err != nil {
 		log.Fatalf("Failed to generate AppK context: %v", err)
 	}
-	if err := os.WriteFile("appk.ctx", appkCtx, 0644); err != nil {
+	if err := os.WriteFile(pathUserInternal+"appk.ctx", appkCtx, 0644); err != nil {
 		log.Fatalf("Failed to save AppK context: %v", err)
 	}
 
 	// Store the AppK name, which is a hash of the public key blob
-	if err := os.WriteFile("appk.name", nameData, 0644); err != nil {
+	if err := os.WriteFile(pathUserPublic+"appk.name", nameData, 0644); err != nil {
 		log.Println("Failed to write appk.name")
 		return err
 	}
 
 	// Store the AppK public key blob, which includes content such as the key attributes
-	if err := os.WriteFile(fileAppKPubBlob, pubBlob, 0644); err != nil {
+	if err := os.WriteFile(pathUserPublic+fileAppKPubBlob, pubBlob, 0644); err != nil {
 		log.Println("Failed to write appk.pub.tpmt")
 		return err
 	}
@@ -284,7 +284,7 @@ func createAppK() error {
 
 func createEK() error {
 	fmt.Println("Generating EK...")
-	f, err := tpm2.OpenTPM(pathTPM)
+	f, err := tpm2.OpenTPM(devTPM)
 	if err != nil {
 		log.Fatalf("opening tpm: %v", err)
 	}
@@ -306,7 +306,7 @@ func createEK() error {
 		log.Println("Failed to generate EK context")
 		return err
 	}
-	if err := os.WriteFile("ek.ctx", handle, 0644); err != nil {
+	if err := os.WriteFile(pathUserInternal+"ek.ctx", handle, 0644); err != nil {
 		log.Println("Failed to save EK context")
 		return err
 	}
@@ -328,7 +328,7 @@ func createEK() error {
 
 func createSRK() error {
 	fmt.Println("Generating SRK...")
-	f, err := tpm2.OpenTPM(pathTPM)
+	f, err := tpm2.OpenTPM(devTPM)
 	if err != nil {
 		log.Fatalf("opening tpm: %v", err)
 	}
@@ -356,7 +356,7 @@ func createSRK() error {
 		log.Println("Failed to generate SRK context")
 		return err
 	}
-	if err := os.WriteFile("srk.ctx", out, 0644); err != nil {
+	if err := os.WriteFile(pathUserInternal+"srk.ctx", out, 0644); err != nil {
 		log.Println("Failed to save SRK context")
 		return err
 	}
@@ -412,7 +412,7 @@ func newSigner(tpm io.ReadWriter, h tpmutil.Handle) (*signer, error) {
 
 func signIID() error {
 	fmt.Println("Signing IID...")
-	f, err := tpm2.OpenTPM(pathTPM)
+	f, err := tpm2.OpenTPM(devTPM)
 	if err != nil {
 		log.Fatalf("opening tpm: %v", err)
 	}
@@ -441,7 +441,7 @@ func signIID() error {
 		return fmt.Errorf("unable to sign data: %v", err)
 	}
 
-	if err := os.WriteFile("iid.sig", sig, 0644); err != nil {
+	if err := os.WriteFile(pathUserPublic+"iid.sig", sig, 0644); err != nil {
 		return fmt.Errorf("unable to write iid.sig: %v", err)
 	}
 
@@ -455,14 +455,14 @@ func storePublicKey(prefix string, pub crypto.PublicKey) (*pem.Block, error) {
 		return nil, err
 	}
 
-	if err := os.WriteFile(prefix+".pub.der", pubDER, 0644); err != nil {
+	if err := os.WriteFile(pathUserPublic+prefix+".pub.der", pubDER, 0644); err != nil {
 		log.Println("writing " + prefix + ".pub.der")
 		return nil, err
 	}
 
 	b := &pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}
 
-	if err := os.WriteFile(prefix+".pub.pem", pem.EncodeToMemory(b), 0644); err != nil {
+	if err := os.WriteFile(pathUserPublic+prefix+".pub.pem", pem.EncodeToMemory(b), 0644); err != nil {
 		log.Println("writing " + prefix + ".pub.pem")
 		return nil, err
 	}
