@@ -42,9 +42,9 @@ func credentialActivation(akNameData []byte, akPubBlob []byte, checkCA bool) err
 func servChallenge(nameData []byte, pubBlob []byte, checkCA bool) ([]byte, []byte, error) {
 	var ekPath string
 	if checkCA {
-		ekPath = "RSA_EK_pub.der"
+		ekPath = pathUserPublic + "RSA_EK_pub.der"
 	} else {
-		ekPath = "ek.pub.der"
+		ekPath = pathUserPublic + "ek.pub.der"
 	}
 
 	/*
