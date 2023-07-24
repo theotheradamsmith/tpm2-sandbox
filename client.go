@@ -21,8 +21,8 @@ import (
 const (
 	// Defined in "Registry of reserved TPM 2.0 handles and localities", and checked on a glinux machine.
 	srkHandle  = 0x81000001
-	akHandle   = 0x81000002
-	appkHandle = 0x81000003
+	akHandle   = 0x81008001
+	appkHandle = 0x81008002
 
 	devTPM = "/dev/tpmrm0"
 )
@@ -117,7 +117,7 @@ func cliActivateCredential(credBlob []byte, encSecret []byte) ([]byte, error) {
 	}
 
 	// Get the EK public key
-	ekCtx, err := os.ReadFile("ek.ctx")
+	ekCtx, err := os.ReadFile(pathUserInternal + "ek.ctx")
 	if err != nil {
 		log.Println("Unable to read ek.ctx")
 		return nil, err
