@@ -184,7 +184,7 @@ func servVerifyIID(appkPubBlob []byte) error {
 		return fmt.Errorf("unable to read iid.raw: %v", err)
 	}
 	digest := sha256.Sum256(msg)
-	sig, err := os.ReadFile("iid.sig")
+	sig, err := os.ReadFile(pathUserPublic + "iid.sig")
 	if err != nil {
 		return fmt.Errorf("unable to read iid.sig: %v", err)
 	}
