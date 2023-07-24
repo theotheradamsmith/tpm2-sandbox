@@ -77,7 +77,7 @@ func cleanClient() {
 	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, srkHandle, srkHandle); err != nil {
 		log.Printf("Unable to evict SRK: %v", err)
 	}
-	if err := tpm2.EvictControl(f, "", tpm2.HandleEndorsement, ekHandle, ekHandle); err != nil {
+	if err := tpm2.EvictControl(f, "", tpm2.HandleEK, ekHandle, ekHandle); err != nil {
 		log.Printf("Unable to evict EK: %v", err)
 	}
 }
@@ -319,7 +319,7 @@ func createEK() error {
 	}
 
 	// Persist the Key
-	if err := tpm2.EvictControl(f, "", tpm2.HandleEndorsement, ek, ekHandle); err != nil {
+	if err := tpm2.EvictControl(f, "", tpm2.HandleEK, ek, ekHandle); err != nil {
 		log.Println("Failed to make EK persistent")
 		return err
 	}
