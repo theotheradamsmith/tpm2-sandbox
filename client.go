@@ -168,15 +168,17 @@ func createAK() error {
 	}
 
 	// Store AK context
-	akCtx, err := tpm2.ContextSave(f, ak)
-	if err != nil {
-		log.Println("Failed to generate AK ctx")
-		return err
-	}
-	if err := os.WriteFile(pathUserInternal+"ak.ctx", akCtx, 0644); err != nil {
-		log.Println("Failed to save AK ctx")
-		return err
-	}
+	/*
+		akCtx, err := tpm2.ContextSave(f, ak)
+		if err != nil {
+			log.Println("Failed to generate AK ctx")
+			return err
+		}
+		if err := os.WriteFile(pathUserInternal+"ak.ctx", akCtx, 0644); err != nil {
+			log.Println("Failed to save AK ctx")
+			return err
+		}
+	*/
 
 	// Store the AK name, which is a hash of the public key blob
 	if err := os.WriteFile(pathUserPublic+"ak.name", nameData, 0644); err != nil {
@@ -191,19 +193,22 @@ func createAK() error {
 	}
 
 	// Store AK public key
-	akTPMPub, _, _, err := tpm2.ReadPublic(f, ak)
-	if err != nil {
-		log.Fatalf("read ak public: %v", err)
-	}
-	akPub, err := akTPMPub.Key()
-	if err != nil {
-		log.Fatalf("decode ak public key: %v", err)
-	}
-	b, err := storePublicKey("ak", akPub)
-	if err != nil {
-		log.Fatalf("Unable to store AK public key")
-	}
-	return pem.Encode(os.Stdout, b)
+	/*
+		akTPMPub, _, _, err := tpm2.ReadPublic(f, ak)
+		if err != nil {
+			log.Fatalf("read ak public: %v", err)
+		}
+		akPub, err := akTPMPub.Key()
+		if err != nil {
+			log.Fatalf("decode ak public key: %v", err)
+		}
+		b, err := storePublicKey("ak", akPub)
+		if err != nil {
+			log.Fatalf("Unable to store AK public key")
+		}
+		return pem.Encode(os.Stdout, b)
+	*/
+	return nil
 }
 
 func createAppK() error {
@@ -224,7 +229,7 @@ func createAppK() error {
 		log.Println("Failed to create AppK")
 		return err
 	}
-	appk, nameData, err := tpm2.Load(f, srkHandle, "", pubBlob, privBlob)
+	appk, _, err := tpm2.Load(f, srkHandle, "", pubBlob, privBlob)
 	if err != nil {
 		log.Println("Failed to load AppK")
 		return err
@@ -243,19 +248,21 @@ func createAppK() error {
 	}
 
 	// Store AppK context
-	appkCtx, err := tpm2.ContextSave(f, appk)
-	if err != nil {
-		log.Fatalf("Failed to generate AppK context: %v", err)
-	}
-	if err := os.WriteFile(pathUserInternal+"appk.ctx", appkCtx, 0644); err != nil {
-		log.Fatalf("Failed to save AppK context: %v", err)
-	}
+	/*
+		appkCtx, err := tpm2.ContextSave(f, appk)
+		if err != nil {
+			log.Fatalf("Failed to generate AppK context: %v", err)
+		}
+		if err := os.WriteFile(pathUserInternal+"appk.ctx", appkCtx, 0644); err != nil {
+			log.Fatalf("Failed to save AppK context: %v", err)
+		}
 
-	// Store the AppK name, which is a hash of the public key blob
-	if err := os.WriteFile(pathUserPublic+"appk.name", nameData, 0644); err != nil {
-		log.Println("Failed to write appk.name")
-		return err
-	}
+		// Store the AppK name, which is a hash of the public key blob
+		if err := os.WriteFile(pathUserPublic+"appk.name", nameData, 0644); err != nil {
+			log.Println("Failed to write appk.name")
+			return err
+		}
+	*/
 
 	// Store the AppK public key blob, which includes content such as the key attributes
 	if err := os.WriteFile(pathUserPublic+fileAppKPubBlob, pubBlob, 0644); err != nil {
@@ -264,22 +271,25 @@ func createAppK() error {
 	}
 
 	// Store appk.pub and PEM, and print PEM to stdout
-	appkTPMPub, err := tpm2.DecodePublic(pubBlob)
-	if err != nil {
-		log.Println("Failed to decode AppK blob")
-		return err
-	}
-	appkPub, err := appkTPMPub.Key()
-	if err != nil {
-		log.Println("Failed to get AppK public key")
-		return err
-	}
-	b, err := storePublicKey("appk", appkPub)
-	if err != nil {
-		log.Println("Unable to store AppK public key")
-		return err
-	}
-	return pem.Encode(os.Stdout, b)
+	/*
+		appkTPMPub, err := tpm2.DecodePublic(pubBlob)
+		if err != nil {
+			log.Println("Failed to decode AppK blob")
+			return err
+		}
+		appkPub, err := appkTPMPub.Key()
+		if err != nil {
+			log.Println("Failed to get AppK public key")
+			return err
+		}
+		b, err := storePublicKey("appk", appkPub)
+		if err != nil {
+			log.Println("Unable to store AppK public key")
+			return err
+		}
+		return pem.Encode(os.Stdout, b)
+	*/
+	return nil
 }
 
 func createEK() error {
@@ -294,7 +304,7 @@ func createEK() error {
 		}
 	}()
 
-	ek, pub, err := tpm2.CreatePrimary(f, tpm2.HandleEndorsement, tpm2.PCRSelection{}, "", "", defaultEKTemplate)
+	ek, _, err := tpm2.CreatePrimary(f, tpm2.HandleEndorsement, tpm2.PCRSelection{}, "", "", defaultEKTemplate)
 	if err != nil {
 		log.Println("creating EK")
 		return err
@@ -318,12 +328,15 @@ func createEK() error {
 	}
 
 	// Store EK public key
-	b, err := storePublicKey("ek", pub)
-	if err != nil {
-		return fmt.Errorf("unable to store EK public key: %v", err)
-	}
+	/*
+		b, err := storePublicKey("ek", pub)
+		if err != nil {
+			return fmt.Errorf("unable to store EK public key: %v", err)
+		}
 
-	return pem.Encode(os.Stdout, b)
+			return pem.Encode(os.Stdout, b)
+	*/
+	return nil
 }
 
 func createSRK() error {
@@ -338,7 +351,7 @@ func createSRK() error {
 		}
 	}()
 
-	srk, pub, err := tpm2.CreatePrimary(f, tpm2.HandleOwner, tpm2.PCRSelection{}, "", "", defaultSRKTemplate)
+	srk, _, err := tpm2.CreatePrimary(f, tpm2.HandleOwner, tpm2.PCRSelection{}, "", "", defaultSRKTemplate)
 	if err != nil {
 		log.Println("creating SRK")
 		return err
@@ -351,24 +364,27 @@ func createSRK() error {
 	}
 
 	// Save SRK context
-	out, err := tpm2.ContextSave(f, srk)
-	if err != nil {
-		log.Println("Failed to generate SRK context")
-		return err
-	}
-	if err := os.WriteFile(pathUserInternal+"srk.ctx", out, 0644); err != nil {
-		log.Println("Failed to save SRK context")
-		return err
-	}
+	/*
+		out, err := tpm2.ContextSave(f, srk)
+		if err != nil {
+			log.Println("Failed to generate SRK context")
+			return err
+		}
+		if err := os.WriteFile(pathUserInternal+"srk.ctx", out, 0644); err != nil {
+			log.Println("Failed to save SRK context")
+			return err
+		}
 
-	// Store SRK public key
-	b, err := storePublicKey("srk", pub)
-	if err != nil {
-		log.Println("Unable to store SRK public key")
-		return err
-	}
+		// Store SRK public key
+		b, err := storePublicKey("srk", pub)
+		if err != nil {
+			log.Println("Unable to store SRK public key")
+			return err
+		}
 
-	return pem.Encode(os.Stdout, b)
+		return pem.Encode(os.Stdout, b)
+	*/
+	return nil
 }
 
 type signer struct {
