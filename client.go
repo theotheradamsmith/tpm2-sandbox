@@ -319,7 +319,7 @@ func createEK() error {
 	}
 
 	// Persist the Key
-	if err := tpm2.EvictControl(f, "", tpm2.HandleOwner, ek, ekHandle); err != nil {
+	if err := tpm2.EvictControl(f, "", tpm2.HandleEndorsement, ek, ekHandle); err != nil {
 		log.Println("Failed to make EK persistent")
 		return err
 	}
