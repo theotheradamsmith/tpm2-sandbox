@@ -17,7 +17,7 @@ const (
 	pathIID  = pathData + "adoption.id"
 
 	pathTPM          = pathData + "tpm/"
-	pathUserInternal = pathData + "internal/"
+	pathUserInternal = pathTPM + "internal/"
 	pathUserPublic   = pathTPM + "public/"
 
 	fileAKPubBlob     = "ak.pub.tpmt"
